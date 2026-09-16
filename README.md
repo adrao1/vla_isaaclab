@@ -10,6 +10,7 @@ This project is a composable Isaac Lab simulation platform. Its default scenario
 - Isaac Sim: 4.5.0.0
 - Isaac Lab: v2.0.2
 - PyTorch: 2.5.1+cu121
+- LeRobot: 0.4.3 (Dataset v3.0)
 - Tested GPU: NVIDIA GeForce RTX 4090, driver 550.144.03
 
 Activate the isolated environment:
@@ -19,6 +20,17 @@ cd /home/vlakbnn/jiajunl4/YCB_Object
 source scripts/activate.sh
 check_install_environment
 ```
+
+The compatible LeRobot writer dependencies are already installed. To reproduce
+that installation in this same Conda environment, run:
+
+```bash
+./scripts/install_lerobot_dataset.sh
+```
+
+The script checks `python`, `pip`, and `conda info --envs` before every install
+command. It pins the Isaac-compatible PyTorch stack and installs LeRobot with
+`--no-deps`, preventing pip from replacing Isaac Sim's PyTorch packages.
 
 ## Run the default scenario
 
@@ -106,10 +118,13 @@ src/sim_platform/
 ├── sensors/              # fixed RGB-D rig
 ├── tasks/                # PickPlace and Reach manager configurations
 ├── controllers/          # standing and arm raise/lower baselines
-└── recording/            # recorder terms and compressed HDF5 backend
+└── recording/            # frame adapter, HDF5 staging and LeRobot v3 writer
 ```
 
-The old monolithic scene entry points were removed. `scripts/run_scenario.py` is the primary scenario runner; `scripts/replay_dataset.py` is the separate dataset replay utility. Shell scripts only activate the correct Conda environment and pass arguments to these Python entry points.
+The old monolithic scene entry points were removed. `scripts/run_scenario.py` is
+the primary scenario runner. HDF5 and LeRobot each have separate inspection and
+replay utilities. Shell scripts activate and verify the correct Conda environment
+before passing arguments to Python.
 
 ## Rates and interfaces
 
@@ -121,9 +136,75 @@ The old monolithic scene entry points were removed. `scripts/run_scenario.py` is
 - PickPlace policy observation: 89 values
 - Reach policy observation: 81 values
 
-## Recording and replay
+## LeRobot recording pipeline
 
-Record a demonstration:
+Record the default scenario as a local LeRobot Dataset v3 dataset. The default
+command records two episodes with 120 frames per episode:
+
+```bash
+./scripts/record_lerobot.sh
+```
+
+The resulting dataset is written to:
+
+```text
+outputs/lerobot/g1_dinnerware_raise_lower/
+├── data/                         # Parquet state and action records
+├── videos/                       # 640x480, 30 Hz AV1 front-camera video
+└── meta/                         # features, episodes, tasks, stats and simulation manifest
+```
+
+Inspect the dataset and decode representative video frames:
+
+```bash
+python scripts/inspect_lerobot.py outputs/lerobot/g1_dinnerware_raise_lower
+```
+
+Replay episode 0 through Isaac Sim and save a new camera image:
+
+```bash
+./scripts/replay_lerobot.sh \
+  outputs/lerobot/g1_dinnerware_raise_lower \
+  --episode 0 \
+  --headless
+```
+
+The replay output is `outputs/replay/lerobot_rgb.png`, with a JSON report beside
+it. Recording and replay use a neutral temporary file between the LeRobot process
+and Isaac Sim process. This process boundary avoids loading PyAV/TorchVision and
+Omniverse native libraries into the same Python process.
+
+Recorded fields:
+
+| Field | Shape | Meaning |
+|---|---:|---|
+| `observation.state` | 25 | G1 controlled-joint positions in radians |
+| `observation.velocity` | 25 | G1 controlled-joint velocities in rad/s |
+| `action` | 25 | physical joint-position targets in radians |
+| `sim.action.normalized` | 25 | simulator action used for exact replay |
+| `observation.environment_state` | 28 | two end-effector poses and two object poses |
+| `observation.images.front` | 3x480x640 | RGB camera video |
+| `next.reward`, `next.done`, `next.success` | 1 | transition outcome |
+| `sim.seed` | 1 | episode reset seed |
+
+Custom recordings can select any registered scenario components:
+
+```bash
+./scripts/run_scenario.sh \
+  --headless \
+  --record-format lerobot \
+  --episodes 10 \
+  --steps 300 \
+  --dataset-name my_dataset \
+  --task-prompt "Raise and lower both arms."
+```
+
+Datasets are local and are not uploaded to Hugging Face Hub.
+
+## Native HDF5 recording
+
+The original compressed HDF5 backend remains useful for debugging RGB-D and raw
+Isaac Lab recorder output:
 
 ```bash
 ./scripts/record_scenario.sh --dataset-name g1_tabletop_raise_lower
@@ -136,7 +217,10 @@ python scripts/inspect_dataset.py outputs/datasets/g1_tabletop_raise_lower.hdf5
 ./scripts/replay_dataset.sh outputs/datasets/g1_tabletop_raise_lower.hdf5 --headless
 ```
 
-The HDF5 file contains component IDs, rates, simulator states, actions, observations, RGB, depth, camera calibration and task distance. Tensor datasets use lightweight gzip compression. Datasets remain under `outputs/datasets/` and are ignored by Git.
+The HDF5 file contains component IDs, rates, simulator states, actions,
+observations, RGB, depth, camera calibration and task distance. Tensor datasets
+use lightweight gzip compression. Generated datasets remain under `outputs/`
+and are ignored by Git.
 
 ## Assets and physics
 
@@ -167,5 +251,9 @@ python scripts/inspect_dinnerware_assets.py
 - The G1 root is fixed; balance and locomotion are outside the current task scope.
 - The arm raise/lower controller only validates the control interface.
 - PickPlace does not yet include IK, grasp phases or gripper logic.
+- The current LeRobot sample records the raise/lower control baseline; it is not
+  a successful object pick-and-place demonstration.
+- Depth remains available in the HDF5 backend but is not part of the current
+  LeRobot RGB schema.
 - A future physical robot must provide its own adapter and validated joint mapping.
 - Long RGB-D datasets still require disk planning even with compression.

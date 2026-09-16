@@ -1,3 +1,1 @@
-from .recorder_cfg import ScenarioRecorderCfg
-
-__all__ = ["ScenarioRecorderCfg"]
+"""Dataset recording backends with no eager simulator imports."""
