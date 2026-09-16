@@ -1,0 +1,22 @@
+# Tested with Python 3.10.21 in the jiajunl_isaac Conda environment.
+# Before installing, run:
+#   source scripts/activate.sh
+#   check_install_environment
+#
+# Isaac Sim wheels are hosted by NVIDIA. The CUDA 12.1 PyTorch wheel used by
+# Isaac Lab v2.0.2 is hosted by PyTorch.
+--extra-index-url https://pypi.nvidia.com
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+# Core simulator, extensions, and cached Kit extensions.
+isaacsim[all,extscache]==4.5.0.0
+
+# Isaac Lab v2.0.2-compatible runtime versions used by this project.
+torch==2.5.1+cu121
+numpy==1.26.4
+pillow==11.0.0
+
+# The repository must be checked out at tag v2.0.2 under ./IsaacLab first.
+# These paths reproduce the editable Isaac Lab packages in the current env.
+-e ./IsaacLab/source/isaaclab
+-e ./IsaacLab/source/isaaclab_assets
