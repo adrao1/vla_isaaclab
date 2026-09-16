@@ -4,6 +4,8 @@ outputs/tmp/
 outputs/datasets/
 outputs/scenarios/
 outputs/replay/
+outputs/lerobot/
+outputs/lerobot_staging/
 outputs/asset-inspection.json
 outputs/dinnerware-asset-inspection.json
 

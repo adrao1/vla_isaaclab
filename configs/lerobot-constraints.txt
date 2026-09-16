@@ -1,0 +1,6 @@
+# Protect the Isaac Sim 4.5 / Isaac Lab 2.0.2 runtime while adding the
+# LeRobot Dataset v3 writer dependencies.
+torch==2.5.1+cu121
+numpy==1.26.4
+pillow==11.0.0
+opencv-python==4.11.0.86

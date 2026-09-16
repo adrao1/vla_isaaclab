@@ -17,6 +17,18 @@ numpy==1.26.4
 pillow==11.0.0
 h5py==3.16.0
 
+# LeRobot Dataset v3 writer dependencies. Install this section with
+# scripts/install_lerobot_dataset.sh: LeRobot itself must use --no-deps so its
+# dependency resolver cannot replace the Isaac-compatible PyTorch packages.
+# lerobot==0.4.3
+datasets==4.1.1
+pyarrow==25.0.1
+pandas==2.3.3
+av==15.1.0
+jsonlines==4.0.0
+accelerate==1.15.0
+torchvision==0.20.1+cu121
+
 # The repository must be checked out at tag v2.0.2 under ./IsaacLab first.
 # These paths reproduce the editable Isaac Lab packages in the current env.
 -e ./IsaacLab/source/isaaclab

@@ -42,6 +42,11 @@ class UpperBodyJointAction(ActionTerm):
     def joint_names(self) -> list[str]:
         return list(self._joint_names)
 
+    @property
+    def joint_position_targets(self) -> torch.Tensor:
+        """Physical position targets, ordered like ``joint_names``."""
+        return self._joint_targets[:, self._joint_ids]
+
     def process_actions(self, actions: torch.Tensor) -> None:
         self._raw_actions[:] = actions
         self._processed_actions[:] = torch.clamp(actions, -1.0, 1.0)

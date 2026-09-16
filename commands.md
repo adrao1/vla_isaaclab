@@ -62,6 +62,47 @@ check_install_environment
 
 ## 数据录制与回放
 
+### LeRobot Dataset v3
+
+默认录制 2 个 episode，每个 120 帧：
+
+```bash
+./scripts/record_lerobot.sh
+```
+
+自定义 episode 数量和长度（后面的参数会覆盖脚本默认值）：
+
+```bash
+./scripts/record_lerobot.sh \
+  --episodes 10 \
+  --steps 300 \
+  --dataset-name my_dataset \
+  --task-prompt "Raise and lower both arms."
+```
+
+检查正式数据集，包括代表性视频帧解码：
+
+```bash
+python scripts/inspect_lerobot.py outputs/lerobot/g1_dinnerware_raise_lower
+```
+
+在 Isaac Sim 中回放第 0 个 episode：
+
+```bash
+./scripts/replay_lerobot.sh \
+  outputs/lerobot/g1_dinnerware_raise_lower \
+  --episode 0 \
+  --headless
+```
+
+如需在同一 `jiajunl_isaac` 环境中重新安装兼容的数据集依赖：
+
+```bash
+./scripts/install_lerobot_dataset.sh
+```
+
+### 原生 HDF5
+
 录制 120 个控制步：
 
 ```bash
@@ -71,7 +112,11 @@ check_install_environment
 短录制测试：
 
 ```bash
-./scripts/run_scenario.sh --headless --record --steps 4 --dataset-name scenario_smoke
+./scripts/run_scenario.sh \
+  --headless \
+  --record-format hdf5 \
+  --steps 4 \
+  --dataset-name scenario_smoke
 ```
 
 检查和回放：
@@ -87,8 +132,11 @@ python scripts/inspect_dataset.py outputs/datasets/scenario_smoke.hdf5
 outputs/scenarios/<scenario-id>/rgb.png
 outputs/scenarios/<scenario-id>/validation.json
 outputs/datasets/*.hdf5
+outputs/lerobot/<dataset-name>/
 outputs/replay/rgb.png
 outputs/replay/rgb.json
+outputs/replay/lerobot_rgb.png
+outputs/replay/lerobot_rgb.json
 ```
 
 ## 资产检查
