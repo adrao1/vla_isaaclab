@@ -31,7 +31,7 @@ Run a finite headless simulation and save validation results:
 ./scripts/validate_scene.sh
 ```
 
-Run the separate bowl-and-plate scene and save its camera image:
+Run the Unitree G1 bowl-and-plate scene and save its camera image:
 
 ```bash
 ./scripts/validate_dinnerware_scene.sh
@@ -63,7 +63,9 @@ On a server without an X display, use `--headless`. The first rendered run can t
   - `006_mustard_bottle`
   - `005_tomato_soup_can`
 
-A second scene in `src/run_dinnerware_scene.py` places an official Isaac Sim bowl and large plate on the same white table. It uses the corresponding launchers in `scripts/run_dinnerware_scene.sh` and `scripts/validate_dinnerware_scene.sh`.
+A second scene in `src/run_dinnerware_scene.py` places an official Unitree G1 in front of the same white table with an official Isaac Sim bowl and large plate. It uses the corresponding launchers in `scripts/run_dinnerware_scene.sh` and `scripts/validate_dinnerware_scene.sh`.
+
+The G1 uses Isaac Lab v2.0.2's official `G1_CFG` and `Robots/Unitree/G1/g1.usd` asset. Its root is fixed at the standing pose and all joints receive their default position targets. The `torso_joint` (waist yaw), shoulder, elbow and hand/finger joints remain actuated so later control code can command them without changing the scene setup.
 
 No robot model is selected because the final real robot has not been specified. To test a selected model without changing the scene code:
 
@@ -100,6 +102,9 @@ The selected files are `bowl_plate.usd` and `plate_large.usd`. Their USD files, 
 - `outputs/dinnerware_scene.usd`: composed bowl-and-plate scene
 - `outputs/dinnerware-physics-validation.json`: dinnerware physics validation
 - `outputs/dinnerware-asset-inspection.json`: original asset units, bounds and schema inspection
+- `outputs/dinnerware_g1_scene_rgb.png`: G1 with bowl-and-plate RGB observation
+- `outputs/dinnerware_g1_scene.usd`: composed G1 dinnerware scene
+- `outputs/dinnerware-g1-validation.json`: G1 joint list and dinnerware physics validation
 
 The validation runs 1200 steps at 120 Hz. It fails if an object has a non-finite state, falls through the table, retains a combined linear/angular speed of at least 0.08 after settling, or has a non-positive runtime mass/inertia. PhysX computes the runtime inertia from each official collision shape and authored mass.
 

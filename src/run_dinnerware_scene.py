@@ -39,8 +39,9 @@ from pxr import UsdGeom
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab_assets import G1_CFG
 
 from isaac_assets import prepare_official_assets
 
@@ -151,6 +152,42 @@ def create_dinnerware(cfg: dict, paths: dict[str, Path]) -> dict[str, RigidObjec
     return objects
 
 
+def create_robot(cfg: dict, asset_path: Path) -> Articulation:
+    """Spawn a fixed-base G1 in its default standing pose."""
+    spec = cfg["robot"]
+    robot_cfg = G1_CFG.copy()
+    robot_cfg.prim_path = "/World/Robot"
+    robot_cfg.spawn.usd_path = str(asset_path)
+    robot_cfg.spawn.articulation_props.fix_root_link = True
+    robot_cfg.init_state.pos = tuple(spec["position"])
+    robot_cfg.init_state.rot = tuple(spec["orientation_wxyz"])
+    return Articulation(robot_cfg)
+
+
+def robot_report(robot: Articulation) -> dict:
+    movable_patterns = (
+        "torso_joint",
+        "shoulder",
+        "elbow",
+        "_zero_joint",
+        "_one_joint",
+        "_two_joint",
+        "_three_joint",
+        "_four_joint",
+        "_five_joint",
+        "_six_joint",
+    )
+    movable = [name for name in robot.joint_names if any(pattern in name for pattern in movable_patterns)]
+    return {
+        "model": "Unitree G1",
+        "fixed_base": True,
+        "root_position_m": robot.data.root_pos_w[0].detach().cpu().tolist(),
+        "waist_yaw_joint": "torso_joint",
+        "movable_upper_body_joints": movable,
+        "all_joint_names": list(robot.joint_names),
+    }
+
+
 def save_rgb(camera: Camera, path: Path) -> None:
     rgb = camera.data.output["rgb"][0].detach().cpu().numpy()
     if rgb.shape[-1] == 4:
@@ -189,7 +226,7 @@ def physics_report(objects: dict[str, RigidObject], cfg: dict, steps: int) -> di
 
 def main() -> int:
     cfg = json.loads((PROJECT / "configs/dinnerware_scene.json").read_text())
-    asset_paths = prepare_official_assets(PROJECT, cfg["objects"])
+    asset_paths = prepare_official_assets(PROJECT, cfg["objects"] + [cfg["robot"]])
 
     sim_cfg = sim_utils.SimulationCfg(dt=cfg["physics_dt"], render_interval=2, device=ARGS.device)
     sim = sim_utils.SimulationContext(sim_cfg)
@@ -205,12 +242,12 @@ def main() -> int:
         orientation=(0.9239, 0.3827, 0.0, 0.0),
     )
     create_table(cfg)
-    prim_utils.create_prim("/World/RobotSpawn", "Xform", translation=(0.0, -0.72, 0.0))
+    robot = create_robot(cfg, asset_paths[cfg["robot"]["name"]])
     objects = create_dinnerware(cfg, asset_paths)
     camera = create_camera(cfg)
 
     outputs = PROJECT / "outputs"
-    stage_utils.get_current_stage().Export(str(outputs / "dinnerware_scene.usd"))
+    stage_utils.get_current_stage().Export(str(outputs / "dinnerware_g1_scene.usd"))
     sim.reset()
     camera.set_world_poses_from_view(
         torch.tensor([cfg["camera_eye"]], device=sim.device),
@@ -221,7 +258,12 @@ def main() -> int:
     steps = 0
     while APP.is_running() and (requested_steps == 0 or steps < requested_steps):
         render_now = requested_steps == 0 or steps >= max(requested_steps - 5, 0)
+        # Hold the default standing pose. The fixed root prevents falling while
+        # the waist, arm and hand joints remain actuated for later commands.
+        robot.set_joint_position_target(robot.data.default_joint_pos)
+        robot.write_data_to_sim()
         sim.step(render=render_now)
+        robot.update(sim.get_physics_dt())
         for obj in objects.values():
             obj.update(sim.get_physics_dt())
         if render_now:
@@ -231,11 +273,15 @@ def main() -> int:
             break
 
     if not ARGS.no_image and "rgb" in camera.data.output:
-        save_rgb(camera, outputs / "dinnerware_scene_rgb.png")
+        save_rgb(camera, outputs / "dinnerware_g1_scene_rgb.png")
     report = physics_report(objects, cfg, steps)
-    report["asset_source"] = "NVIDIA Isaac Sim 4.5 ArchVis Residential Kitchen Dinnerware"
+    report["robot"] = robot_report(robot)
+    report["asset_sources"] = {
+        "dinnerware": "NVIDIA Isaac Sim 4.5 ArchVis Residential Kitchen Dinnerware",
+        "robot": "NVIDIA Isaac Lab v2.0.2 Unitree G1 (Robots/Unitree/G1/g1.usd)",
+    }
     report["collision_note"] = "Hidden solid-cylinder proxies approximate the outer support shape."
-    (outputs / "dinnerware-physics-validation.json").write_text(json.dumps(report, indent=2) + "\n")
+    (outputs / "dinnerware-g1-validation.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2), flush=True)
     return 0 if report["passed"] else 2
 

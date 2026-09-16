@@ -2,9 +2,15 @@
   "table_size": [1.2, 0.8, 0.05],
   "table_height": 0.75,
   "physics_dt": 0.008333333333333333,
-  "camera_eye": [1.15, -1.35, 1.45],
-  "camera_target": [0.0, 0.0, 0.79],
+  "camera_eye": [2.8, -3.2, 2.25],
+  "camera_target": [0.0, -0.05, 0.95],
   "camera_resolution": [640, 480],
+  "robot": {
+    "name": "unitree_g1",
+    "asset": "Isaac/IsaacLab/Robots/Unitree/G1/g1.usd",
+    "position": [0.0, -0.82, 0.74],
+    "orientation_wxyz": [0.70710678, 0.0, 0.0, 0.70710678]
+  },
   "objects": [
     {
       "name": "bowl",
