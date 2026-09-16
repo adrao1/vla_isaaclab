@@ -10,16 +10,14 @@ from pathlib import Path
 import h5py
 
 
-REQUIRED_DATASETS = (
+COMMON_DATASETS = (
     "actions",
     "obs",
     "states/articulation/robot/joint_position",
-    "states/rigid_object/bowl/root_pose",
-    "states/rigid_object/plate/root_pose",
-    "camera/frames/rgb",
-    "camera/frames/depth",
-    "camera/calibration/intrinsic_matrix",
-    "task/bowl_to_plate_distance",
+    "sensors/camera/frames/rgb",
+    "sensors/camera/frames/depth",
+    "sensors/camera/calibration/intrinsic_matrix",
+    "task/distance",
 )
 
 
@@ -29,22 +27,30 @@ def main() -> int:
     args = parser.parse_args()
     with h5py.File(args.dataset, "r") as stream:
         episodes = sorted(stream["data"].keys())
+        metadata = json.loads(stream["data"].attrs["env_args"])
         summary = {
             "file": str(args.dataset.resolve()),
-            "environment": json.loads(stream["data"].attrs["env_args"])["env_name"],
+            "metadata": metadata,
             "episodes": {},
             "valid": True,
         }
         for episode_name in episodes:
             episode = stream[f"data/{episode_name}"]
-            missing = [name for name in REQUIRED_DATASETS if name not in episode]
+            required = list(COMMON_DATASETS)
+            if metadata.get("task") == "Task-PickPlace-v0":
+                required.extend(("states/rigid_object/object/root_pose", "states/rigid_object/goal/root_pose"))
+            missing = [name for name in required if name not in episode]
             summary["episodes"][episode_name] = {
                 "steps": int(episode.attrs["num_samples"]),
                 "success": bool(episode.attrs.get("success", False)),
                 "action_shape": list(episode["actions"].shape),
                 "observation_shape": list(episode["obs"].shape),
-                "rgb_shape": list(episode["camera/frames/rgb"].shape) if "camera/frames/rgb" in episode else None,
-                "depth_shape": list(episode["camera/frames/depth"].shape) if "camera/frames/depth" in episode else None,
+                "rgb_shape": list(episode["sensors/camera/frames/rgb"].shape)
+                if "sensors/camera/frames/rgb" in episode else None,
+                "depth_shape": list(episode["sensors/camera/frames/depth"].shape)
+                if "sensors/camera/frames/depth" in episode else None,
+                "rgb_compression": episode["sensors/camera/frames/rgb"].compression
+                if "sensors/camera/frames/rgb" in episode else None,
                 "missing": missing,
             }
             summary["valid"] = summary["valid"] and not missing

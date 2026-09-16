@@ -1,4 +1,4 @@
-"""Spawner for official dinnerware visuals with stable physics proxies."""
+"""Custom reusable asset spawners."""
 
 from __future__ import annotations
 
@@ -15,17 +15,9 @@ from isaaclab.utils import configclass
 
 
 @clone
-def spawn_dinnerware(
-    prim_path: str,
-    cfg: "DinnerwareSpawnerCfg",
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-) -> Usd.Prim:
-    """Reference a visual USD and add a hidden cylindrical collision shape."""
+def spawn_visual_with_cylinder_collider(prim_path, cfg, translation=None, orientation=None) -> Usd.Prim:
     root = prim_utils.create_prim(prim_path, "Xform", translation=translation, orientation=orientation)
-    prim_utils.create_prim(
-        f"{prim_path}/Visual", "Xform", usd_path=cfg.usd_path, scale=cfg.visual_scale
-    )
+    prim_utils.create_prim(f"{prim_path}/Visual", "Xform", usd_path=cfg.usd_path, scale=cfg.visual_scale)
     cylinder = UsdGeom.Cylinder.Define(stage_utils.get_current_stage(), f"{prim_path}/Collision")
     cylinder.CreateAxisAttr("Z")
     cylinder.CreateRadiusAttr(cfg.collider_radius)
@@ -39,8 +31,8 @@ def spawn_dinnerware(
 
 
 @configclass
-class DinnerwareSpawnerCfg(RigidObjectSpawnerCfg):
-    func = spawn_dinnerware
+class VisualCylinderRigidObjectCfg(RigidObjectSpawnerCfg):
+    func = spawn_visual_with_cylinder_collider
     usd_path: str = MISSING
     visual_scale: tuple[float, float, float] = (0.01, 0.01, 0.01)
     collider_radius: float = MISSING
