@@ -4,6 +4,8 @@ outputs/tmp/
 outputs/datasets/
 outputs/scenarios/
 outputs/replay/
+outputs/asset-inspection.json
+outputs/dinnerware-asset-inspection.json
 
 # Generated logs
 outputs/*.log
