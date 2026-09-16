@@ -6,7 +6,7 @@ outputs/tmp/
 outputs/*.log
 
 # Isaac Lab is a pinned upstream checkout with its own Git repository.
-IsaacLab/
+/IsaacLab/
 
 # Python/editor artifacts
 __pycache__/

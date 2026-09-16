@@ -82,9 +82,9 @@ outputs/validate-scene.log
 ./scripts/run_scene.sh --headless --enable_cameras --device cuda:0 --steps 1200
 ```
 
-## 运行碗和盘子场景
+## 运行 G1、碗和盘子场景
 
-无界面运行 1200 个物理步，验证餐具落桌稳定性并保存截图：
+无界面运行 1200 个物理步，固定 Unitree G1 基座并保持站立，验证餐具落桌稳定性并保存截图：
 
 ```bash
 ./scripts/validate_dinnerware_scene.sh
@@ -105,11 +105,13 @@ outputs/validate-scene.log
 对应输出：
 
 ```text
-outputs/dinnerware_scene_rgb.png
-outputs/dinnerware_scene.usd
-outputs/dinnerware-physics-validation.json
-outputs/validate-dinnerware-scene.log
+outputs/dinnerware_g1_scene_rgb.png
+outputs/dinnerware_g1_scene.usd
+outputs/dinnerware-g1-validation.json
+outputs/validate-dinnerware-g1-scene.log
 ```
+
+G1 使用 Isaac Lab v2.0.2 官方 `G1_CFG`。机器人根部固定，腿部保持默认站立目标；`torso_joint`（waist yaw）、双肩、双肘和手指关节仍由执行器驱动。
 
 餐具资产静态检查：
 
@@ -182,6 +184,7 @@ python -m json.tool outputs/asset-inspection.json
 ```bash
 file outputs/scene_rgb.png
 file outputs/dinnerware_scene_rgb.png
+file outputs/dinnerware_g1_scene_rgb.png
 ```
 
 查看项目及磁盘占用：

@@ -58,5 +58,11 @@
     "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/NVIDIA/Assets/ArchVis/Residential/Kitchen/Kitchenware/Dinnerware/Textures/Plates_Large_Normal.png",
     "bytes": 2501962,
     "sha256": "84b634c0918e6074b0784c7afcf25a5f2d91e3c8d6251ef9cdd32fc5ac814be3"
+  },
+  {
+    "path": "assets/Isaac/4.5/Isaac/IsaacLab/Robots/Unitree/G1/g1.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/IsaacLab/Robots/Unitree/G1/g1.usd",
+    "bytes": 22183713,
+    "sha256": "cd7303a1859321ed94999b5ed23fa7c45d67ad0d44ace0e24a6c5ea6b7ad3422"
   }
 ]

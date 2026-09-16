@@ -1,0 +1,153 @@
+{
+  "passed": true,
+  "steps": 1200,
+  "objects": {
+    "bowl": {
+      "position_m": [
+        -0.18000000715255737,
+        0.03999995440244675,
+        0.7500000596046448
+      ],
+      "velocity_mps_and_radps": [
+        5.336055892257718e-06,
+        -2.4027276595006697e-05,
+        -8.552404324291274e-06,
+        0.00018554182315710932,
+        7.126881973817945e-05,
+        -7.111265585990623e-05
+      ],
+      "speed_norm": 0.0002126992039848119,
+      "mass_kg": 0.3499999940395355,
+      "runtime_inertia_tensor": [
+        0.0011238498846068978,
+        0.0,
+        0.0,
+        0.0,
+        0.0011238500010222197,
+        0.0,
+        0.0,
+        0.0,
+        0.002195199951529503
+      ],
+      "inertia_positive": true,
+      "finite": true,
+      "above_table": true,
+      "stable": true,
+      "passed": true
+    },
+    "plate": {
+      "position_m": [
+        0.20000000298023224,
+        0.020000014454126358,
+        0.7500000596046448
+      ],
+      "velocity_mps_and_radps": [
+        -4.0982081372931134e-07,
+        -1.7560041669639759e-06,
+        -7.908690349722747e-06,
+        6.699619552819058e-05,
+        -4.5882101403549314e-05,
+        -3.3014005111908773e-06
+      ],
+      "speed_norm": 8.16722385934554e-05,
+      "mass_kg": 0.44999998807907104,
+      "runtime_inertia_tensor": [
+        0.0028853989206254482,
+        0.0,
+        0.0,
+        0.0,
+        0.0028853993862867355,
+        0.0,
+        0.0,
+        0.0,
+        0.005759998690336943
+      ],
+      "inertia_positive": true,
+      "finite": true,
+      "above_table": true,
+      "stable": true,
+      "passed": true
+    }
+  },
+  "robot": {
+    "model": "Unitree G1",
+    "fixed_base": true,
+    "root_position_m": [
+      1.605277022420637e-11,
+      -0.8199999928474426,
+      0.7400000095367432
+    ],
+    "waist_yaw_joint": "torso_joint",
+    "movable_upper_body_joints": [
+      "torso_joint",
+      "left_shoulder_pitch_joint",
+      "right_shoulder_pitch_joint",
+      "left_shoulder_roll_joint",
+      "right_shoulder_roll_joint",
+      "left_shoulder_yaw_joint",
+      "right_shoulder_yaw_joint",
+      "left_elbow_pitch_joint",
+      "right_elbow_pitch_joint",
+      "left_elbow_roll_joint",
+      "right_elbow_roll_joint",
+      "left_five_joint",
+      "left_three_joint",
+      "left_zero_joint",
+      "right_five_joint",
+      "right_three_joint",
+      "right_zero_joint",
+      "left_six_joint",
+      "left_four_joint",
+      "left_one_joint",
+      "right_six_joint",
+      "right_four_joint",
+      "right_one_joint",
+      "left_two_joint",
+      "right_two_joint"
+    ],
+    "all_joint_names": [
+      "left_hip_pitch_joint",
+      "right_hip_pitch_joint",
+      "torso_joint",
+      "left_hip_roll_joint",
+      "right_hip_roll_joint",
+      "left_shoulder_pitch_joint",
+      "right_shoulder_pitch_joint",
+      "left_hip_yaw_joint",
+      "right_hip_yaw_joint",
+      "left_shoulder_roll_joint",
+      "right_shoulder_roll_joint",
+      "left_knee_joint",
+      "right_knee_joint",
+      "left_shoulder_yaw_joint",
+      "right_shoulder_yaw_joint",
+      "left_ankle_pitch_joint",
+      "right_ankle_pitch_joint",
+      "left_elbow_pitch_joint",
+      "right_elbow_pitch_joint",
+      "left_ankle_roll_joint",
+      "right_ankle_roll_joint",
+      "left_elbow_roll_joint",
+      "right_elbow_roll_joint",
+      "left_five_joint",
+      "left_three_joint",
+      "left_zero_joint",
+      "right_five_joint",
+      "right_three_joint",
+      "right_zero_joint",
+      "left_six_joint",
+      "left_four_joint",
+      "left_one_joint",
+      "right_six_joint",
+      "right_four_joint",
+      "right_one_joint",
+      "left_two_joint",
+      "right_two_joint"
+    ]
+  },
+  "asset_sources": {
+    "dinnerware": "NVIDIA Isaac Sim 4.5 ArchVis Residential Kitchen Dinnerware",
+    "robot": "NVIDIA Isaac Lab v2.0.2 Unitree G1 (Robots/Unitree/G1/g1.usd)"
+  },
+  "collision_note": "Hidden solid-cylinder proxies approximate the outer support shape."
+}
