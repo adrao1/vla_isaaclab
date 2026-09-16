@@ -1,0 +1,74 @@
+[
+  {
+    "path": "assets/YCB/Axis_Aligned_Physics/003_cracker_box.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd",
+    "bytes": 4437,
+    "sha256": "2a0f1519201f71cd589f2542f9924add8d11085cf94e6757f12b91c5950c707b"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned/003_cracker_box.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned/003_cracker_box.usd",
+    "bytes": 460489,
+    "sha256": "2d3725fd7f47e6064cdfdd19553e49f5de6df5f1afcbcceb43466d57847b479d"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned/Materials/Textures/003_cracker_box_COLOR.png",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned/Materials/Textures/003_cracker_box_COLOR.png",
+    "bytes": 13564223,
+    "sha256": "dc8a7c90d9a96e2101c764b872a54cf91e3537dd9d059fdd32217b003072e42b"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned_Physics/004_sugar_box.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned_Physics/004_sugar_box.usd",
+    "bytes": 10525,
+    "sha256": "f338ab5e6552d682799ac82fe57daf36d3fa2a3c81f5739f0caaea8dde951b86"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned/004_sugar_box.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned/004_sugar_box.usd",
+    "bytes": 459153,
+    "sha256": "abbf30b1b20585ba36f677c744a4dd7500d84b6fa77e5bd720e9e56bcc0e5201"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned/Materials/Textures/004_sugar_box_COLOR.png",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned/Materials/Textures/004_sugar_box_COLOR.png",
+    "bytes": 15511838,
+    "sha256": "28b350366d308d139f2259c5c1e4f1b5fa11d16396b36cee77fd476cfa2e1558"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
+    "bytes": 46591,
+    "sha256": "1775b4345d28528fd50b23921f38a1b6db961f47f05ea5a89fbad80e7bb441b7"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned/006_mustard_bottle.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned/006_mustard_bottle.usd",
+    "bytes": 458920,
+    "sha256": "cf833351d1a4ad5c3a1861536cb2192f4a5cf12e6cf80bd08609be2f0aec7a48"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned/Materials/Textures/006_mustard_bottle_COLOR.png",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned/Materials/Textures/006_mustard_bottle_COLOR.png",
+    "bytes": 13059413,
+    "sha256": "f9fac6799af122d8457651ac8a9d3df779547f467920023ae8e30714c8fae582"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd",
+    "bytes": 10533,
+    "sha256": "f0d454d8f42b518a7cd378adf0a43b45e9222ea60dc14d703192b7f5eda2f1b0"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned/005_tomato_soup_can.usd",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned/005_tomato_soup_can.usd",
+    "bytes": 467128,
+    "sha256": "e16f7533402d465535042d8ddf3a8e401b4e3c1821d34c6e5cb8993e13d5381e"
+  },
+  {
+    "path": "assets/YCB/Axis_Aligned/Materials/Textures/005_tomato_soup_can_COLOR.png",
+    "source": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Props/YCB/Axis_Aligned/Materials/Textures/005_tomato_soup_can_COLOR.png",
+    "bytes": 12416459,
+    "sha256": "c6e19d89d60c65f702ed789742e488bc15125db3ee2c4bcbb6a7e3c433a3abf1"
+  }
+]
