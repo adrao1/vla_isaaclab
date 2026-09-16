@@ -37,6 +37,19 @@ Run the Unitree G1 bowl-and-plate scene and save its camera image:
 ./scripts/validate_dinnerware_scene.sh
 ```
 
+Run the refactored manager-based task with a small scripted waist/arm motion:
+
+```bash
+./scripts/run_managed_task.sh --headless --steps 300 --demo-motion
+```
+
+Record a 120-control-step episode containing actions, states, observations, RGB, depth and calibration:
+
+```bash
+./scripts/record_managed_demo.sh --dataset-name g1_dinnerware_demo
+python scripts/inspect_dataset.py outputs/datasets/g1_dinnerware_demo.hdf5
+```
+
 Run the scene with a GUI for 600 physics steps:
 
 ```bash
@@ -67,7 +80,32 @@ A second scene in `src/run_dinnerware_scene.py` places an official Unitree G1 in
 
 The G1 uses Isaac Lab v2.0.2's official `G1_CFG` and `Robots/Unitree/G1/g1.usd` asset. Its root is fixed at the standing pose and all joints receive their default position targets. The `torso_joint` (waist yaw), shoulder, elbow and hand/finger joints remain actuated so later control code can command them without changing the scene setup.
 
-No robot model is selected because the final real robot has not been specified. To test a selected model without changing the scene code:
+## Manager-based task architecture
+
+The control/data path is implemented as an Isaac Lab `ManagerBasedRLEnv`. It is useful for scripted control, teleoperation and imitation-learning data even before an RL policy exists:
+
+```text
+controller or policy (30 Hz, 25 normalized upper-body actions)
+    -> ActionManager (upper-body targets + lower-body standing hold)
+    -> PhysX simulation (120 Hz, decimation 4)
+    -> ObservationManager (89 floating-point values)
+    -> Termination/Reward managers (task placeholders)
+    -> RecorderManager (HDF5 actions, state, RGB/depth and task metadata)
+```
+
+Code ownership is split by responsibility:
+
+- `src/ycb_sim/env_cfg.py`: scene, rates, observations, reward and termination configuration
+- `src/ycb_sim/actions.py`: 25-dimensional G1 waist/arms/hands action mapping and lower-body hold
+- `src/ycb_sim/controllers.py`: controller interface and safe scripted motion example
+- `src/ycb_sim/mdp.py`: task observations, distance reward and success condition
+- `src/ycb_sim/recording.py`: Isaac Lab recorder terms for camera calibration, frames and metrics
+- `src/ycb_sim/spawners.py`: official dinnerware visuals and explicit physics proxies
+- `src/run_managed_task.py`: application launch, control loop, screenshot and report
+
+The current placeholder task succeeds when the bowl center is within 8 cm horizontally of the plate center. It does not yet implement grasping. Replace `StandingUpperBodyController.compute()` with a Cartesian controller, teleoperation source or policy adapter while keeping the scene and recorder unchanged.
+
+The original YCB-only entry point remains model-neutral because the final real robot has not been specified. To test another selected model without changing that scene code:
 
 ```bash
 ./scripts/run_scene.sh --enable_cameras --robot-usd /absolute/path/to/robot.usd
@@ -105,6 +143,10 @@ The selected files are `bowl_plate.usd` and `plate_large.usd`. Their USD files, 
 - `outputs/dinnerware_g1_scene_rgb.png`: G1 with bowl-and-plate RGB observation
 - `outputs/dinnerware_g1_scene.usd`: composed G1 dinnerware scene
 - `outputs/dinnerware-g1-validation.json`: G1 joint list and dinnerware physics validation
+- `outputs/managed_g1_dinnerware_rgb.png`: manager-based scene camera image
+- `outputs/managed_g1_dinnerware_scene.usd`: manager-based composed scene
+- `outputs/managed-task-validation.json`: rates, action mapping, lower-body hold and task state
+- `outputs/datasets/*.hdf5`: recorded episodes (ignored by Git because they grow quickly)
 
 The validation runs 1200 steps at 120 Hz. It fails if an object has a non-finite state, falls through the table, retains a combined linear/angular speed of at least 0.08 after settling, or has a non-positive runtime mass/inertia. PhysX computes the runtime inertia from each official collision shape and authored mass.
 
@@ -119,21 +161,26 @@ YCB_Object/
 ├── configs/           # scene data and minimal Kit experiences
 ├── outputs/           # reports, image, USD and logs
 ├── scripts/           # activation, launch, inspection and validation
-└── src/               # scene and asset-cache implementation
+└── src/
+    ├── ycb_sim/       # manager-based scene, control, task and recorder modules
+    └── *.py           # launchers and legacy validated scene entry points
 ```
 
 ## Known issues
 
-- The current scene exposes a robot spawn interface but intentionally does not choose a robot model.
+- The YCB scene still exposes a model-neutral robot spawn interface; the dinnerware task explicitly uses Unitree G1 as requested.
 - On a headless server, Isaac Sim logs GLFW/display warnings even though Vulkan rendering and physics run successfully.
 - The mustard bottle can settle on its side after being dropped. This is physically valid and useful for later pose-randomization tests.
 - Hosted NVIDIA assets require network access only when a selected file is not already cached locally.
+- The G1 base is fixed and the lower body is held at its default pose. This is appropriate for tabletop controller development but does not model balance.
+- The solid-cylinder bowl proxy models stable support, not the concave interior. Placing another object inside the bowl needs a convex-decomposition collider.
+- Camera frames are stored without HDF5 compression. At 640x480 RGB plus float32 depth, recordings use about 2.1 MB per control step; check disk space before long capture sessions.
 
 ## Next steps
 
-1. Select the real robot and pass its USD through `--robot-usd`; then add its joint and gripper configuration in a separate robot configuration module.
-2. Add a controller interface for joint-space or Cartesian end-effector commands.
-3. Use the existing RGB/depth camera to expose observations and calibration data.
-4. Randomize initial object poses within the table bounds and record ground-truth poses.
-5. Add grasp targets and a scripted pick-and-place baseline before introducing RL or imitation learning.
-6. Add domain randomization only after the deterministic controller and perception pipeline pass repeatable tests.
+1. Add left/right end-effector frames and a differential inverse-kinematics controller behind the existing controller interface.
+2. Add a gripper abstraction for the G1 hand and define pre-grasp, grasp, lift and place phases.
+3. Add reset-time object pose randomization with deterministic seeds and workspace bounds.
+4. Implement a scripted pick-and-place baseline and use the existing recorder for successful demonstrations.
+5. Add dataset replay and quality checks before training an imitation-learning policy.
+6. Replace the G1 configuration if the final physical robot differs, then validate joint ordering, limits and camera extrinsics.

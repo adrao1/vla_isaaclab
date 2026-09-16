@@ -15,6 +15,7 @@ isaacsim[all,extscache]==4.5.0.0
 torch==2.5.1+cu121
 numpy==1.26.4
 pillow==11.0.0
+h5py==3.16.0
 
 # The repository must be checked out at tag v2.0.2 under ./IsaacLab first.
 # These paths reproduce the editable Isaac Lab packages in the current env.
