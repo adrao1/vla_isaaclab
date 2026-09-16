@@ -1,0 +1,214 @@
+{
+  "cracker_box": {
+    "default_prim": "/_03_cracker_box",
+    "meters_per_unit": 1.0,
+    "up_axis": "Z",
+    "min": [
+      -0.08201800163049988,
+      -0.10671901464345268,
+      -0.035899998339265604
+    ],
+    "max": [
+      0.08201800163049988,
+      0.10671799421195693,
+      0.035899998339265604
+    ],
+    "rigid_bodies": [
+      "/_03_cracker_box"
+    ],
+    "colliders": [
+      "/_03_cracker_box/_03_cracker_box"
+    ],
+    "mass_properties": [
+      {
+        "prim": "/_03_cracker_box",
+        "mass_kg": 0.41100001335144043,
+        "density_kg_m3": 0.0,
+        "diagonal_inertia": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "center_of_mass": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "prim": "/_03_cracker_box/_03_cracker_box",
+        "mass_kg": 0.0,
+        "density_kg_m3": 0.0,
+        "diagonal_inertia": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "center_of_mass": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ]
+  },
+  "sugar_box": {
+    "default_prim": "/_04_sugar_box",
+    "meters_per_unit": 1.0,
+    "up_axis": "Z",
+    "min": [
+      -0.04633819953341334,
+      -0.08812677186444162,
+      -0.022567469569277687
+    ],
+    "max": [
+      0.04633912936585105,
+      0.08812668603375506,
+      0.02256666848286981
+    ],
+    "rigid_bodies": [
+      "/_04_sugar_box"
+    ],
+    "colliders": [
+      "/_04_sugar_box/_04_sugar_box"
+    ],
+    "mass_properties": [
+      {
+        "prim": "/_04_sugar_box",
+        "mass_kg": 0.5139999985694885,
+        "density_kg_m3": 0.0,
+        "diagonal_inertia": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "center_of_mass": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "prim": "/_04_sugar_box/_04_sugar_box",
+        "mass_kg": 0.0,
+        "density_kg_m3": 0.0,
+        "diagonal_inertia": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "center_of_mass": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ]
+  },
+  "mustard_bottle": {
+    "default_prim": "/_06_mustard_bottle",
+    "meters_per_unit": 1.0,
+    "up_axis": "Z",
+    "min": [
+      -0.04801257026167427,
+      -0.09565000320263195,
+      -0.02912422830333794
+    ],
+    "max": [
+      0.04801158797715033,
+      0.09565099502389884,
+      0.02912470990885696
+    ],
+    "rigid_bodies": [
+      "/_06_mustard_bottle"
+    ],
+    "colliders": [
+      "/_06_mustard_bottle/_06_mustard_bottle"
+    ],
+    "mass_properties": [
+      {
+        "prim": "/_06_mustard_bottle",
+        "mass_kg": 0.6029999852180481,
+        "density_kg_m3": 0.0,
+        "diagonal_inertia": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "center_of_mass": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "prim": "/_06_mustard_bottle/_06_mustard_bottle",
+        "mass_kg": 0.0,
+        "density_kg_m3": 0.0,
+        "diagonal_inertia": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "center_of_mass": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ]
+  },
+  "soup_can": {
+    "default_prim": "/_05_tomato_soup_can",
+    "meters_per_unit": 1.0,
+    "up_axis": "Z",
+    "min": [
+      -0.033829800326456105,
+      -0.05092699890746921,
+      -0.03385759993215798
+    ],
+    "max": [
+      0.0338295785971825,
+      0.050928000265479056,
+      0.03385665817879158
+    ],
+    "rigid_bodies": [
+      "/_05_tomato_soup_can"
+    ],
+    "colliders": [
+      "/_05_tomato_soup_can/_05_tomato_soup_can"
+    ],
+    "mass_properties": [
+      {
+        "prim": "/_05_tomato_soup_can",
+        "mass_kg": 0.3490000069141388,
+        "density_kg_m3": 0.0,
+        "diagonal_inertia": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "center_of_mass": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "prim": "/_05_tomato_soup_can/_05_tomato_soup_can",
+        "mass_kg": 0.0,
+        "density_kg_m3": 0.0,
+        "diagonal_inertia": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "center_of_mass": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ]
+  }
+}

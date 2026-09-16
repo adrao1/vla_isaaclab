@@ -1,0 +1,14 @@
+{
+  "table_size": [1.2, 0.8, 0.05],
+  "table_height": 0.75,
+  "physics_dt": 0.008333333333333333,
+  "camera_eye": [1.25, -1.45, 1.65],
+  "camera_target": [0.0, 0.0, 0.83],
+  "camera_resolution": [640, 480],
+  "objects": [
+    {"name": "cracker_box", "asset": "003_cracker_box", "xy": [-0.34, 0.14]},
+    {"name": "sugar_box", "asset": "004_sugar_box", "xy": [-0.10, -0.16]},
+    {"name": "mustard_bottle", "asset": "006_mustard_bottle", "xy": [0.08, 0.15]},
+    {"name": "soup_can", "asset": "005_tomato_soup_can", "xy": [0.30, -0.12]}
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "passed": true,
+  "steps": 1200,
+  "objects": {
+    "bowl": {
+      "position_m": [
+        -0.18000000715255737,
+        0.040000010281801224,
+        0.7500000596046448
+      ],
+      "velocity_mps_and_radps": [
+        1.312258518737508e-05,
+        -1.1857860954478383e-05,
+        1.451175194233656e-06,
+        0.00010976992052746937,
+        0.00019024914945475757,
+        -3.898968134308234e-05
+      ],
+      "speed_norm": 0.00022378402354661375,
+      "mass_kg": 0.3499999940395355,
+      "runtime_inertia_tensor": [
+        0.0011238498846068978,
+        0.0,
+        0.0,
+        0.0,
+        0.0011238500010222197,
+        0.0,
+        0.0,
+        0.0,
+        0.002195199951529503
+      ],
+      "inertia_positive": true,
+      "finite": true,
+      "above_table": true,
+      "stable": true,
+      "passed": true
+    },
+    "plate": {
+      "position_m": [
+        0.20000000298023224,
+        0.01999998837709427,
+        0.7500000596046448
+      ],
+      "velocity_mps_and_radps": [
+        -4.719745902548311e-06,
+        -1.7759743059286848e-05,
+        -2.973494019897771e-06,
+        -0.0002080857229884714,
+        -5.735574086429551e-05,
+        -4.2762942030094564e-05
+      ],
+      "speed_norm": 0.00022082695795688778,
+      "mass_kg": 0.44999998807907104,
+      "runtime_inertia_tensor": [
+        0.0028853989206254482,
+        0.0,
+        0.0,
+        0.0,
+        0.0028853993862867355,
+        0.0,
+        0.0,
+        0.0,
+        0.005759998690336943
+      ],
+      "inertia_positive": true,
+      "finite": true,
+      "above_table": true,
+      "stable": true,
+      "passed": true
+    }
+  },
+  "asset_source": "NVIDIA Isaac Sim 4.5 ArchVis Residential Kitchen Dinnerware",
+  "collision_note": "Hidden solid-cylinder proxies approximate the outer support shape."
+}

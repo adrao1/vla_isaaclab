@@ -1,0 +1,22 @@
+{
+  "table_size": [1.2, 0.8, 0.05],
+  "table_height": 0.75,
+  "physics_dt": 0.008333333333333333,
+  "camera_eye": [1.15, -1.35, 1.45],
+  "camera_target": [0.0, 0.0, 0.79],
+  "camera_resolution": [640, 480],
+  "objects": [
+    {
+      "name": "bowl",
+      "asset": "NVIDIA/Assets/ArchVis/Residential/Kitchen/Kitchenware/Dinnerware/bowl_plate.usd",
+      "xy": [-0.18, 0.04],
+      "mass": 0.35
+    },
+    {
+      "name": "plate",
+      "asset": "NVIDIA/Assets/ArchVis/Residential/Kitchen/Kitchenware/Dinnerware/plate_large.usd",
+      "xy": [0.20, 0.02],
+      "mass": 0.45
+    }
+  ]
+}

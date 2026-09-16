@@ -1,0 +1,19 @@
+# Isaac Sim runtime data, shader caches, and temporary files
+outputs/runtime/
+outputs/tmp/
+
+# Generated logs
+outputs/*.log
+
+# Isaac Lab is a pinned upstream checkout with its own Git repository.
+IsaacLab/
+
+# Python/editor artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vscode/
+.idea/
+
+# OS metadata
+.DS_Store
