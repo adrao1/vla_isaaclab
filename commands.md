@@ -113,6 +113,59 @@ outputs/validate-dinnerware-g1-scene.log
 
 G1 使用 Isaac Lab v2.0.2 官方 `G1_CFG`。机器人根部固定，腿部保持默认站立目标；`torso_joint`（waist yaw）、双肩、双肘和手指关节仍由执行器驱动。
 
+## 运行重构后的 ManagerBasedRLEnv 任务
+
+无界面运行 300 个控制步，并用小幅正弦动作验证腰部和双臂控制通道：
+
+```bash
+./scripts/run_managed_task.sh --headless --steps 300 --demo-motion
+```
+
+只保持默认站姿，不发送演示动作：
+
+```bash
+./scripts/run_managed_task.sh --headless --steps 300
+```
+
+打开 GUI 并持续运行：
+
+```bash
+./scripts/run_managed_task.sh --steps 0 --demo-motion
+```
+
+该入口使用 120 Hz 物理、30 Hz 控制和 30 Hz RGB/depth 相机。动作是 25 维归一化 G1 腰部、双臂和手指目标；12 个腿部关节保持默认站姿。
+
+输出文件：
+
+```text
+outputs/managed_g1_dinnerware_rgb.png
+outputs/managed_g1_dinnerware_scene.usd
+outputs/managed-task-validation.json
+```
+
+## 录制和检查 HDF5 数据
+
+录制 120 个控制步的动作、策略观测、机器人/物体状态、RGB、深度、相机内外参和任务距离：
+
+```bash
+./scripts/record_managed_demo.sh --dataset-name g1_dinnerware_demo
+```
+
+检查数据结构和每个张量的长度：
+
+```bash
+python scripts/inspect_dataset.py outputs/datasets/g1_dinnerware_demo.hdf5
+```
+
+也可以指定较短的录制用于调试：
+
+```bash
+./scripts/run_managed_task.sh --headless --record --demo-motion --steps 10 --dataset-name smoke_test
+python scripts/inspect_dataset.py outputs/datasets/smoke_test.hdf5
+```
+
+数据集目录已加入 `.gitignore`。640×480 RGB 和 float32 depth 当前未压缩，每个控制步约占 2.1 MB；长时间录制前先运行 `df -h`。
+
 餐具资产静态检查：
 
 ```bash
