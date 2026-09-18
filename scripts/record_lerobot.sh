@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-source /home/vlakbnn/jiajunl4/YCB_Object/scripts/activate.sh
+source "$(dirname "$0")/activate.sh"
 check_install_environment
 cd "$YCB_PROJECT"
 exec python scripts/run_scenario.py \
@@ -8,5 +8,6 @@ exec python scripts/run_scenario.py \
   --record-format lerobot \
   --episodes 2 \
   --steps 120 \
-  --dataset-name g1_dinnerware_raise_lower \
+  --dataset-name g1_ycb_dinnerware_raise_lower \
+  --task-prompt "Raise and lower both arms in front of the YCB bowl and plate." \
   "$@"

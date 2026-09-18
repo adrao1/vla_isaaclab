@@ -42,6 +42,7 @@ class ObjectSetDefinition:
     capabilities: frozenset[str]
     entity_roles: dict[str, str]
     configure_scene: Callable[[Any, WorldDefinition], None] = field(compare=False, repr=False)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

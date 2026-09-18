@@ -42,8 +42,8 @@ TABLETOP_WORLD = WorldDefinition(
     robot_orientation_wxyz=(0.70710678, 0.0, 0.0, 0.70710678),
     camera_eye=(0.0, 2.20, 2.25),
     camera_target=(0.0, -0.25, 0.86),
-    object_position=(-0.18, 0.04, 0.76),
-    goal_position=(0.20, 0.02, 0.76),
+    object_position=(-0.18, -0.24, 0.76),
+    goal_position=(0.12, -0.22, 0.76),
     reach_target=(-0.20, -0.25, 1.03),
     configure_scene=configure_tabletop,
 )

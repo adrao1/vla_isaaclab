@@ -1,0 +1,42 @@
+{
+  "license": "CC BY 4.0",
+  "source": "YCB Object and Model Set",
+  "assets": {
+    "024_bowl": {
+      "url": "https://ycb-benchmarks.s3.amazonaws.com/data/google/024_bowl_google_16k.tgz",
+      "archive_sha256": "ac73b566d4f17c3cd5956684875c3a20dd4c8777821df62f5fee81f6b7751868",
+      "mass_kg": 0.147,
+      "published_dimensions_m": [
+        0.159,
+        0.159,
+        0.053
+      ],
+      "archive": "assets/YCB/original/024_bowl_google_16k.tgz",
+      "visual_mesh": "assets/YCB/dinnerware/024_bowl/visual.obj",
+      "mesh_dimensions_m": [
+        0.16146300000000002,
+        0.161164,
+        0.055009
+      ],
+      "coordinate_normalization": "XY bounds centered; minimum Z moved to zero; no scaling"
+    },
+    "029_plate": {
+      "url": "https://ycb-benchmarks.s3.amazonaws.com/data/google/029_plate_google_16k.tgz",
+      "archive_sha256": "1604d51aa6b7950a1491e7ffab0f8336a625d0a109e4cfb33b7debc94d670255",
+      "mass_kg": 0.279,
+      "published_dimensions_m": [
+        0.258,
+        0.258,
+        0.024
+      ],
+      "archive": "assets/YCB/original/029_plate_google_16k.tgz",
+      "visual_mesh": "assets/YCB/dinnerware/029_plate/visual.obj",
+      "mesh_dimensions_m": [
+        0.26015,
+        0.261102,
+        0.026723
+      ],
+      "coordinate_normalization": "XY bounds centered; minimum Z moved to zero; no scaling"
+    }
+  }
+}

@@ -3,7 +3,7 @@
 ## 激活环境
 
 ```bash
-cd /home/vlakbnn/jiajunl4/YCB_Object
+cd /home/vlakbnn/jiajunl4/isaaclab_manipulation
 source scripts/activate.sh
 check_install_environment
 ```
@@ -11,6 +11,8 @@ check_install_environment
 ## 默认场景
 
 默认组合是 G1、白色桌面、碗、盘子、固定 RGB-D 相机和双臂抬起/放下控制器。
+
+碗和盘子位于靠机器人一侧的桌沿附近。
 
 无界面运行 300 个控制步：
 
@@ -83,14 +85,14 @@ check_install_environment
 检查正式数据集，包括代表性视频帧解码：
 
 ```bash
-python scripts/inspect_lerobot.py outputs/lerobot/g1_dinnerware_raise_lower
+python scripts/inspect_lerobot.py outputs/lerobot/g1_ycb_dinnerware_raise_lower
 ```
 
 在 Isaac Sim 中回放第 0 个 episode：
 
 ```bash
 ./scripts/replay_lerobot.sh \
-  outputs/lerobot/g1_dinnerware_raise_lower \
+  outputs/lerobot/g1_ycb_dinnerware_raise_lower \
   --episode 0 \
   --headless
 ```
@@ -142,6 +144,7 @@ outputs/replay/lerobot_rgb.json
 ## 资产检查
 
 ```bash
+./scripts/prepare_ycb_dinnerware.sh
 python scripts/inspect_assets.py
 python scripts/inspect_dinnerware_assets.py
 ```

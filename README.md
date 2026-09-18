@@ -1,6 +1,6 @@
 # Composable Isaac Lab simulation
 
-This project is a composable Isaac Lab simulation platform. Its default scenario is a fixed-base Unitree G1 in front of a white table with an official Isaac Sim bowl and plate. The baseline controller raises and lowers both arms so the complete action path can be tested before adding grasping or learned policies.
+This project is a composable Isaac Lab simulation platform. Its default scenario is a fixed-base Unitree G1 in front of a white table with scanned YCB `024_bowl` and `029_plate` objects. The baseline controller raises and lowers both arms so the complete action path can be tested before adding grasping or learned policies.
 
 ## Environment
 
@@ -16,7 +16,7 @@ This project is a composable Isaac Lab simulation platform. Its default scenario
 Activate the isolated environment:
 
 ```bash
-cd /home/vlakbnn/jiajunl4/YCB_Object
+cd /home/vlakbnn/jiajunl4/isaaclab_manipulation
 source scripts/activate.sh
 check_install_environment
 ```
@@ -58,6 +58,9 @@ Controller-RaiseLower-v0
 ```
 
 The current `PickPlace` task defines observations, distance reward and success conditions. The baseline controller only raises and lowers the arms; it does not attempt a grasp.
+
+The bowl and plate start near the robot-facing edge of the table at XY
+`(-0.18, -0.24)` and `(0.12, -0.22)` meters.
 
 ## Composition architecture
 
@@ -148,7 +151,7 @@ command records two episodes with 120 frames per episode:
 The resulting dataset is written to:
 
 ```text
-outputs/lerobot/g1_dinnerware_raise_lower/
+outputs/lerobot/g1_ycb_dinnerware_raise_lower/
 ├── data/                         # Parquet state and action records
 ├── videos/                       # 640x480, 30 Hz AV1 front-camera video
 └── meta/                         # features, episodes, tasks, stats and simulation manifest
@@ -157,14 +160,14 @@ outputs/lerobot/g1_dinnerware_raise_lower/
 Inspect the dataset and decode representative video frames:
 
 ```bash
-python scripts/inspect_lerobot.py outputs/lerobot/g1_dinnerware_raise_lower
+python scripts/inspect_lerobot.py outputs/lerobot/g1_ycb_dinnerware_raise_lower
 ```
 
 Replay episode 0 through Isaac Sim and save a new camera image:
 
 ```bash
 ./scripts/replay_lerobot.sh \
-  outputs/lerobot/g1_dinnerware_raise_lower \
+  outputs/lerobot/g1_ycb_dinnerware_raise_lower \
   --episode 0 \
   --headless
 ```
@@ -225,10 +228,21 @@ and are ignored by Git.
 ## Assets and physics
 
 - Robot: Isaac Lab v2.0.2 Unitree G1 asset
-- Dinnerware: Isaac Sim 4.5 ArchVis `bowl_plate.usd` and `plate_large.usd`
+- Dinnerware: official YCB 16k textured scans, `024_bowl` and `029_plate` (CC BY 4.0)
+- Published bowl properties: 159 mm diameter, 53 mm height and 0.147 kg
+- Published plate properties: 258 mm diameter, 24 mm height and 0.279 kg
+- The preparation script preserves scan scale, centers XY, moves the lowest point to Z=0, and converts each mesh to a physics USD with convex decomposition collision
 - YCB: official Isaac Sim 4.5 `Axis_Aligned_Physics` assets cached locally
-- Dinnerware visuals use explicit rigid bodies, masses and hidden cylinder collision proxies
-- The bowl proxy models external support and does not model its concave interior
+
+Download and convert the two dinnerware assets reproducibly:
+
+```bash
+./scripts/prepare_ycb_dinnerware.sh
+```
+
+The two source archives total about 17.3 MB. Generated files and their source
+URLs, checksums, measured bounds and coordinate normalization are recorded in
+`assets/YCB/dinnerware/manifest.json`.
 
 Asset inspection tools remain available:
 
@@ -251,7 +265,7 @@ python scripts/inspect_dinnerware_assets.py
 - The G1 root is fixed; balance and locomotion are outside the current task scope.
 - The arm raise/lower controller only validates the control interface.
 - PickPlace does not yet include IK, grasp phases or gripper logic.
-- The current LeRobot sample records the raise/lower control baseline; it is not
+- The current LeRobot sample records the raise/lower control baseline with YCB dinnerware; it is not
   a successful object pick-and-place demonstration.
 - Depth remains available in the HDF5 backend but is not part of the current
   LeRobot RGB schema.

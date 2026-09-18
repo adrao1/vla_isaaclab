@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-source /home/vlakbnn/jiajunl4/YCB_Object/scripts/activate.sh
+source "$(dirname "$0")/activate.sh"
 cd "$YCB_PROJECT"
 
 check_install_environment
