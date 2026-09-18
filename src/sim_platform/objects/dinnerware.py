@@ -20,7 +20,21 @@ def dinnerware_cfg(path, position):
         )
     return RigidObjectCfg(
         prim_path="",
-        spawn=sim_utils.UsdFileCfg(usd_path=str(path)),
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(path),
+            activate_contact_sensors=True,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                rigid_body_enabled=True,
+                kinematic_enabled=False,
+                disable_gravity=False,
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=4,
+                max_depenetration_velocity=1.0,
+            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(
+                collision_enabled=True, contact_offset=0.002, rest_offset=0.0
+            ),
+        ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=position),
     )
 

@@ -28,4 +28,5 @@ STANDING_CONTROLLER = ControllerDefinition(
     component_id="Controller-Standing-v0",
     required_robot_capabilities=frozenset({"upper_body_joint_control"}),
     factory=make_standing,
+    behavior_prompt="Stand still in the default pose.",
 )

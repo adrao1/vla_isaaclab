@@ -81,12 +81,12 @@ Current registered components:
 
 | Kind | IDs |
 |---|---|
-| World | `World-Tabletop-v0`, `World-Pedestal-v0` |
+| World | `World-Tabletop-v0`, `World-Pedestal-v0`, `World-MicrowaveTabletop-v0` |
 | Robot | `Robot-UnitreeG1-v0` |
-| Objects | `Objects-Dinnerware-v0`, `Objects-YCB-Basic-v0`, `Objects-None-v0` |
+| Objects | `Objects-Dinnerware-v0`, `Objects-YCB-Basic-v0`, `Objects-Microwave-v0`, `Objects-None-v0` |
 | Sensors | `Sensors-FixedRGBD-v0` |
-| Tasks | `Task-PickPlace-v0`, `Task-Reach-v0` |
-| Controllers | `Controller-Standing-v0`, `Controller-RaiseLower-v0` |
+| Tasks | `Task-PickPlace-v0`, `Task-Reach-v0`, `Task-BowlToPlate-v0`, `Task-ScenePreview-v0` |
+| Controllers | `Controller-Standing-v0`, `Controller-RaiseLower-v0`, `Controller-LeftHandBowlToPlate-v0` |
 
 List them from the executable registry:
 
@@ -105,6 +105,54 @@ Example alternative composition:
   --controller Controller-Standing-v0 \
   --steps 300
 ```
+
+## Microwave tabletop scene
+
+The appliance preview composes a fixed-base G1, white table, fixed RGB-D camera,
+and an existing articulated microwave while the robot holds its standing pose:
+
+```bash
+./scripts/run_scenario.sh \
+  --headless \
+  --world World-MicrowaveTabletop-v0 \
+  --objects Objects-Microwave-v0 \
+  --task Task-ScenePreview-v0 \
+  --controller Controller-Standing-v0 \
+  --steps 240 \
+  --preview-video outputs/previews/microwave_tabletop_standing.mp4
+```
+
+The microwave comes from `vikashplus/furniture_sim` commit
+`c97995afb81c9e2d7325b0069f9abc9a2c74a2f0` under Apache-2.0. The vendored
+source plus generated USD occupy about 1.5 MB. Its physical door is connected by
+the existing `micro0joint` revolute joint with range `[-2.094, 0]` radians. This
+preview keeps the door closed and does not command it. Regenerate the USD with:
+
+```bash
+./scripts/prepare_microwave_asset.sh
+python scripts/inspect_microwave_asset.py --headless
+```
+
+## YCB scene preview
+
+`Task-ScenePreview-v0` is object-set independent and can also preview the four
+cached physics-enabled YCB assets: cracker box, sugar box, tomato soup can and
+mustard bottle. The robot holds its standing pose:
+
+```bash
+./scripts/run_scenario.sh \
+  --headless \
+  --world World-Tabletop-v0 \
+  --objects Objects-YCB-Basic-v0 \
+  --task Task-ScenePreview-v0 \
+  --controller Controller-Standing-v0 \
+  --steps 240 \
+  --preview-video outputs/previews/ycb_scene_preview.mp4
+```
+
+The mustard bottle has its own axis conversion so it starts upright with its
+cap pointing up. All four objects must be finite, above the table and below the
+runner's stability speed threshold for the validation report to pass.
 
 ## Source layout
 

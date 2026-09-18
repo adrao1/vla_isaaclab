@@ -33,8 +33,8 @@ def task_success(env: ManagerBasedRLEnv, support_height: float, threshold: float
     return torch.logical_and(horizontal < threshold, obj.data.root_pos_w[:, 2] > support_height - 0.03)
 
 
-def configure_scene(scene, world) -> None:
-    return None
+def configure_scene(scene, world, robot, objects) -> None:
+    del scene, world, robot, objects
 
 
 def build_managers(world, robot, objects):
@@ -77,6 +77,7 @@ def build_managers(world, robot, objects):
 
 PICK_PLACE_TASK = TaskDefinition(
     component_id="Task-PickPlace-v0",
+    instruction="Move the manipulation object to the goal object.",
     required_world_capabilities=frozenset({"support_surface", "object_spawn_region", "target_region"}),
     required_robot_capabilities=frozenset({"upper_body_joint_control"}),
     required_object_capabilities=frozenset({"manipulation_object", "physical_goal"}),

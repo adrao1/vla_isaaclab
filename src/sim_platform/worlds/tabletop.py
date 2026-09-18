@@ -37,13 +37,13 @@ TABLETOP_WORLD = WorldDefinition(
     capabilities=frozenset(
         {"robot_spawn", "workspace", "support_surface", "object_spawn_region", "target_region", "camera_mount"}
     ),
-    support_height=0.68,
-    robot_position=(0.0, -0.82, 0.74),
+    support_height=0.62,
+    robot_position=(0.0, -0.62, 0.74),
     robot_orientation_wxyz=(0.70710678, 0.0, 0.0, 0.70710678),
     camera_eye=(0.0, 2.20, 2.25),
     camera_target=(0.0, -0.25, 0.86),
-    object_position=(-0.18, -0.24, 0.76),
-    goal_position=(0.12, -0.22, 0.76),
+    object_position=(-0.18, -0.28, 0.70),
+    goal_position=(0.12, -0.24, 0.70),
     reach_target=(-0.20, -0.25, 1.03),
     configure_scene=configure_tabletop,
 )

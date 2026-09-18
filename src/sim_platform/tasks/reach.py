@@ -41,7 +41,8 @@ def reach_success(env: ManagerBasedRLEnv, body_name: str, target, threshold: flo
     return reach_distance(env, body_name, target) < threshold
 
 
-def configure_scene(scene, world) -> None:
+def configure_scene(scene, world, robot, objects) -> None:
+    del robot, objects
     scene.reach_target = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/ReachTarget",
         spawn=sim_utils.SphereCfg(
@@ -100,6 +101,7 @@ def build_managers(world, robot, objects):
 
 REACH_TASK = TaskDefinition(
     component_id="Task-Reach-v0",
+    instruction="Move the left hand to the green target.",
     required_world_capabilities=frozenset({"workspace", "target_region", "camera_mount"}),
     required_robot_capabilities=frozenset({"upper_body_joint_control", "left_end_effector"}),
     required_object_capabilities=frozenset(),

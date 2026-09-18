@@ -7,6 +7,7 @@ import argparse
 import json
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -28,17 +29,39 @@ def parse_args():
     parser.add_argument("--episodes", type=int, default=1)
     parser.add_argument("--dataset-name", default="scenario_demo")
     parser.add_argument("--task-prompt")
+    parser.add_argument("--stop-after-phase", help="Stop a staged controller after this phase for debugging.")
+    parser.add_argument(
+        "--debug-continue-on-timeout",
+        action="store_true",
+        help="Continue staged debug motion after a phase timeout instead of stopping the controller.",
+    )
+    parser.add_argument(
+        "--preview-video",
+        type=Path,
+        help="Write the rendered run to MP4 without creating or labeling a demonstration dataset.",
+    )
     parser.add_argument("--no-image", action="store_true")
+    parser.add_argument(
+        "--physics-only",
+        action="store_true",
+        help="Disable camera creation and RTX rendering for controller/physics debugging.",
+    )
     parser.add_argument("--list-components", action="store_true")
     AppLauncher.add_app_launcher_args(parser)
     args = parser.parse_args()
-    args.enable_cameras = True
+    args.enable_cameras = not args.physics_only
     return args
 
 
 ARGS = parse_args()
 ARGS.experience = str(
-    PROJECT / "configs" / ("ycb.python.headless.rendering.kit" if ARGS.headless else "ycb.python.rendering.kit")
+    PROJECT
+    / "configs"
+    / (
+        "ycb.python.headless.kit"
+        if ARGS.physics_only
+        else ("ycb.python.headless.rendering.kit" if ARGS.headless else "ycb.python.rendering.kit")
+    )
 )
 ARGS.kit_args = f"--portable-root {PROJECT}/outputs/runtime/kit"
 APP = AppLauncher(ARGS).app
@@ -65,22 +88,18 @@ def save_rgb(env, path):
     Image.fromarray(rgb.astype(np.uint8), mode="RGB").save(path)
 
 
-def task_distance(env, bundle) -> float:
+def task_distance(env, bundle) -> float | None:
     if bundle.selection.task == "Task-Reach-v0":
         robot = env.scene["robot"]
         body_ids, _ = robot.find_bodies([bundle.robot.left_end_effector], preserve_order=True)
         palm = robot.data.body_pos_w[:, body_ids[0]] - env.scene.env_origins
         target = torch.tensor(bundle.world.reach_target, device=env.device).unsqueeze(0)
         return torch.linalg.vector_norm(palm - target, dim=-1)[0].item()
-    obj = env.scene["object"]
-    goal = env.scene["goal"]
-    return torch.linalg.vector_norm(obj.data.root_pos_w - goal.data.root_pos_w, dim=-1)[0].item()
-
-
-def default_task_prompt(task_id: str) -> str:
-    if task_id == "Task-Reach-v0":
-        return "Move the left hand to the green target."
-    return "Raise and lower both arms while standing in front of the table."
+    if "object" in env.scene.rigid_objects and "goal" in env.scene.rigid_objects:
+        obj = env.scene["object"]
+        goal = env.scene["goal"]
+        return torch.linalg.vector_norm(obj.data.root_pos_w - goal.data.root_pos_w, dim=-1)[0].item()
+    return None
 
 
 def main() -> int:
@@ -95,6 +114,10 @@ def main() -> int:
         raise ValueError("LeRobot recording requires a positive --steps value")
     if ARGS.record_format != "lerobot" and ARGS.episodes != 1:
         raise ValueError("Multiple episodes currently require --record-format lerobot")
+    if ARGS.physics_only and ARGS.record_format != "none":
+        raise ValueError("--physics-only cannot be combined with recording")
+    if ARGS.physics_only and ARGS.preview_video is not None:
+        raise ValueError("--physics-only cannot be combined with --preview-video")
 
     selection = ScenarioSelection(
         world=ARGS.world,
@@ -104,7 +127,7 @@ def main() -> int:
         task=ARGS.task,
         controller=ARGS.controller,
     )
-    bundle = compose_scenario(selection)
+    bundle = compose_scenario(selection, enable_sensors=not ARGS.physics_only)
     cfg = bundle.env_cfg
     cfg.sim.device = ARGS.device
     cfg.seed = 42
@@ -126,14 +149,30 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"[scenario] composing {selection.scenario_id}", flush=True)
     env = ScenarioEnv(cfg)
+    preview_container = None
+    preview_stream = None
     try:
         origin = env.scene.env_origins[0]
-        eye = torch.tensor([bundle.world.camera_eye], device=env.device) + origin
-        target = torch.tensor([bundle.world.camera_target], device=env.device) + origin
-        env.scene["camera"].set_world_poses_from_view(eye, target)
+        if not ARGS.physics_only:
+            eye = torch.tensor([bundle.world.camera_eye], device=env.device) + origin
+            target = torch.tensor([bundle.world.camera_target], device=env.device) + origin
+            env.scene["camera"].set_world_poses_from_view(eye, target)
         env.reset()
+        env.controller_stop_after_phase = ARGS.stop_after_phase
+        env.controller_debug_continue = ARGS.debug_continue_on_timeout
         controller = bundle.controller.factory(env, bundle.robot, False)
         initial_obs_dim = int(env.obs_buf["policy"].shape[-1])
+
+        if ARGS.preview_video is not None:
+            import av
+
+            preview_path = ARGS.preview_video.resolve()
+            preview_path.parent.mkdir(parents=True, exist_ok=True)
+            preview_container = av.open(str(preview_path), mode="w")
+            preview_stream = preview_container.add_stream("libx264", rate=30)
+            preview_stream.width = 640
+            preview_stream.height = 480
+            preview_stream.pix_fmt = "yuv420p"
 
         if ARGS.record_format == "hdf5":
             handler = env.recorder_manager._dataset_file_handler
@@ -156,7 +195,7 @@ def main() -> int:
             from sim_platform.recording.staging import StagingHDF5Writer
 
             adapter = ScenarioFrameAdapter(env, bundle)
-            task_prompt = ARGS.task_prompt or default_task_prompt(selection.task)
+            task_prompt = ARGS.task_prompt or bundle.controller.behavior_prompt or bundle.task.instruction
             writer = StagingHDF5Writer(
                 root=PROJECT / "outputs/lerobot_staging",
                 dataset_name=Path(ARGS.dataset_name).stem,
@@ -176,6 +215,7 @@ def main() -> int:
                 with torch.inference_mode():
                     for episode_index in range(ARGS.episodes):
                         env.reset(seed=cfg.seed + episode_index)
+                        episode_succeeded = False
                         for episode_step in range(finite_steps):
                             snapshot = adapter.capture()
                             action = controller.compute(episode_step)
@@ -193,10 +233,17 @@ def main() -> int:
                                 )
                             )
                             terminated_count += int(terminated.sum().item())
+                            episode_succeeded = episode_succeeded or bool(terminated[0].item())
                             timed_out_count += int(timed_out.sum().item())
                             steps += 1
                             if bool(terminated[0].item()) or bool(timed_out[0].item()):
                                 break
+                        if selection.task == "Task-BowlToPlate-v0" and not episode_succeeded:
+                            diagnostics = controller.diagnostics() if hasattr(controller, "diagnostics") else {}
+                            raise RuntimeError(
+                                "Refusing to save a failed bowl-to-plate demonstration: "
+                                + json.dumps(diagnostics)
+                            )
                         writer.save_episode()
                         episodes_completed += 1
                 staging_path = writer.finalize()
@@ -218,6 +265,13 @@ def main() -> int:
             with torch.inference_mode():
                 while APP.is_running() and (ARGS.steps == 0 or steps < ARGS.steps):
                     _, _, terminated, timed_out, _ = env.step(controller.compute(steps))
+                    if preview_stream is not None:
+                        import av
+
+                        rgb = env.scene["camera"].data.output["rgb"][0, ..., :3].detach().cpu().numpy()
+                        frame = av.VideoFrame.from_ndarray(rgb.astype(np.uint8), format="rgb24")
+                        for packet in preview_stream.encode(frame):
+                            preview_container.mux(packet)
                     terminated_count += int(terminated.sum().item())
                     timed_out_count += int(timed_out.sum().item())
                     steps += 1
@@ -225,7 +279,7 @@ def main() -> int:
                         break
             episodes_completed = 1
 
-        if not ARGS.no_image:
+        if not ARGS.no_image and not ARGS.physics_only:
             save_rgb(env, output_dir / "rgb.png")
 
         robot = env.scene["robot"]
@@ -233,6 +287,8 @@ def main() -> int:
         lower_error = torch.max(
             torch.abs(robot.data.joint_pos[:, lower_ids] - robot.data.default_joint_pos[:, lower_ids])
         ).item()
+        left_ee_ids, _ = robot.find_bodies([bundle.robot.left_end_effector], preserve_order=True)
+        left_ee_position = robot.data.body_pos_w[0, left_ee_ids[0]] - env.scene.env_origins[0]
         rigid_objects = {}
         objects_valid = True
         for name, obj in env.scene.rigid_objects.items():
@@ -249,6 +305,22 @@ def main() -> int:
             }
             objects_valid = objects_valid and finite and above_support and stable
 
+        articulations = {}
+        for name, articulation in env.scene.articulations.items():
+            if name == "robot":
+                continue
+            joint_names = list(articulation.joint_names)
+            positions = articulation.data.joint_pos[0].detach().cpu().tolist()
+            velocities = articulation.data.joint_vel[0].detach().cpu().tolist()
+            finite = bool(torch.isfinite(articulation.data.joint_pos[0]).all().item())
+            articulations[name] = {
+                "joint_names": joint_names,
+                "joint_positions_rad": positions,
+                "joint_velocities_rad_s": velocities,
+                "finite": finite,
+            }
+            objects_valid = objects_valid and finite
+
         report = {
             "passed": lower_error < 0.05 and objects_valid,
             "scenario": cfg.scenario_metadata,
@@ -259,23 +331,46 @@ def main() -> int:
             "observation_dimension": initial_obs_dim,
             "controlled_joints": controller.joint_names,
             "max_lower_body_default_pose_error_rad": lower_error,
+            "left_end_effector_position_m": left_ee_position.detach().cpu().tolist(),
             "task_distance_m": task_distance(env, bundle),
             "rigid_objects": rigid_objects,
+            "articulations": articulations,
             "terminated_count": terminated_count,
             "timed_out_count": timed_out_count,
             "recording_enabled": ARGS.record_format != "none",
             "recording_format": ARGS.record_format,
             "dataset": str(dataset_path) if dataset_path is not None else None,
+            "preview_video": str(ARGS.preview_video.resolve()) if ARGS.preview_video is not None else None,
         }
+        if hasattr(controller, "diagnostics"):
+            report["controller"] = controller.diagnostics()
+        object_height = bundle.objects.metadata.get("assets", {}).get("object", {}).get("published_dimensions_m", [0, 0, 0])[2]
+        if object_height:
+            bowl_top = env.scene["object"].data.root_pos_w[0, 2].item() + float(object_height)
+            report["left_end_effector_height_above_object_top_m"] = left_ee_position[2].item() - bowl_top
+        if selection.task == "Task-BowlToPlate-v0":
+            report["passed"] = bool(
+                report["passed"]
+                and terminated_count > 0
+                and not report.get("controller", {}).get("failed", False)
+            )
         (output_dir / "validation.json").write_text(json.dumps(report, indent=2) + "\n")
         print(json.dumps(report, indent=2), flush=True)
         return 0 if report["passed"] else 2
     finally:
+        if preview_stream is not None:
+            for packet in preview_stream.encode():
+                preview_container.mux(packet)
+        if preview_container is not None:
+            preview_container.close()
         env.close()
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except Exception:
+        traceback.print_exc()
+        raise
     finally:
         APP.close()

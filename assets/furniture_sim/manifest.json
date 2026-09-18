@@ -1,0 +1,18 @@
+{
+  "name": "furniture_sim microwave",
+  "source": "https://github.com/vikashplus/furniture_sim",
+  "source_commit": "c97995afb81c9e2d7325b0069f9abc9a2c74a2f0",
+  "license": "Apache-2.0",
+  "source_mjcf": "assets/furniture_sim/microwave.xml",
+  "source_sha256": "4ff97cedcf1814c71bc11adcad121ee55ee82b6f37164fba63ef35fe3befe96a",
+  "generated_usd": "assets/furniture_sim/generated/microwave.usd",
+  "generated_sha256": "62a09f1e494cef7dc53aba20f8090dc43df35acc441bfb80d41d14b5024cc46f",
+  "converter": "Isaac Sim 4.5 isaacsim.asset.importer.mjcf",
+  "door_joint": "micro0joint",
+  "door_joint_range_rad": [
+    -2.094,
+    0.0
+  ],
+  "articulation_root": "/microwave/microroot",
+  "postprocess": "Removed duplicate ArticulationRootAPI markers and deactivated the empty showcase wrapper body/fixed joint emitted by the importer."
+}

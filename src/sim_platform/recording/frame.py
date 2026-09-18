@@ -17,6 +17,7 @@ class FrameSnapshot:
     joint_velocity: np.ndarray
     environment_state: np.ndarray
     rgb: np.ndarray
+    control_phase: np.ndarray
 
 
 class ScenarioFrameAdapter:
@@ -46,6 +47,13 @@ class ScenarioFrameAdapter:
             self.environment_state_names.extend(f"{role}.{axis}" for axis in POSE_NAMES)
         for name in self.rigid_object_names:
             self.environment_state_names.extend(f"{name}.{axis}" for axis in POSE_NAMES)
+            self.environment_state_names.extend(
+                f"{name}.{axis}"
+                for axis in (
+                    "linear_velocity.x", "linear_velocity.y", "linear_velocity.z",
+                    "angular_velocity.x", "angular_velocity.y", "angular_velocity.z",
+                )
+            )
 
         rgb = env.scene["camera"].data.output["rgb"][0, ..., :3]
         self.image_shape = tuple(int(value) for value in rgb.shape)
@@ -67,6 +75,7 @@ class ScenarioFrameAdapter:
             "next.done": {"dtype": "bool", "shape": (1,), "names": None},
             "next.success": {"dtype": "bool", "shape": (1,), "names": None},
             "sim.seed": {"dtype": "int64", "shape": (1,), "names": None},
+            "control.phase": {"dtype": "int64", "shape": (1,), "names": ["phase_index"]},
             "observation.images.front": {
                 "dtype": "video",
                 "shape": (3, self.image_shape[0], self.image_shape[1]),
@@ -89,7 +98,18 @@ class ScenarioFrameAdapter:
             rigid_object = self.env.scene[name]
             position = rigid_object.data.root_pos_w[0] - origin
             orientation = rigid_object.data.root_quat_w[0]
-            state_parts.append(self._numpy(torch.cat((position, orientation))))
+            state_parts.append(
+                self._numpy(
+                    torch.cat(
+                        (
+                            position,
+                            orientation,
+                            rigid_object.data.root_lin_vel_w[0],
+                            rigid_object.data.root_ang_vel_w[0],
+                        )
+                    )
+                )
+            )
 
         rgb = self.env.scene["camera"].data.output["rgb"][0, ..., :3]
         return FrameSnapshot(
@@ -97,6 +117,10 @@ class ScenarioFrameAdapter:
             joint_velocity=self._numpy(self.robot.data.joint_vel[0, self.joint_ids]),
             environment_state=np.concatenate(state_parts).astype(np.float32, copy=False),
             rgb=self._numpy(rgb, dtype=np.uint8),
+            control_phase=np.asarray(
+                [int(getattr(self.env, "bowl_to_plate_phase", torch.zeros(1, device=self.env.device))[0].item())],
+                dtype=np.int64,
+            ),
         )
 
     def complete_frame(self, snapshot, reward, terminated, timed_out, horizon, task, seed) -> dict:
@@ -112,6 +136,7 @@ class ScenarioFrameAdapter:
             "next.done": np.asarray([done], dtype=np.bool_),
             "next.success": np.asarray([success], dtype=np.bool_),
             "sim.seed": np.asarray([seed], dtype=np.int64),
+            "control.phase": snapshot.control_phase,
             "observation.images.front": snapshot.rgb,
             "task": task,
         }
