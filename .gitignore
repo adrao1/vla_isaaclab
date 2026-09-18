@@ -9,6 +9,11 @@ outputs/lerobot_staging/
 outputs/asset-inspection.json
 outputs/dinnerware-asset-inspection.json
 
+# Reproducible downloaded/generated YCB dinnerware payloads
+assets/YCB/original/
+assets/YCB/dinnerware/024_bowl/
+assets/YCB/dinnerware/029_plate/
+
 # Generated logs
 outputs/*.log
 

@@ -107,6 +107,7 @@ def compose_scenario(selection: ScenarioSelection) -> ScenarioBundle:
         "world": selection.world,
         "robot": selection.robot,
         "objects": selection.objects,
+        "object_set_metadata": objects.metadata,
         "sensors": selection.sensors,
         "task": selection.task,
         "controller": selection.controller,

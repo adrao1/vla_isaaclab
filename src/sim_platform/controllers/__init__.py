@@ -1,6 +1,7 @@
 """Controller definitions."""
 
-from .standing import RAISE_LOWER_CONTROLLER, STANDING_CONTROLLER
+from .raise_lower import RAISE_LOWER_CONTROLLER
+from .standing import STANDING_CONTROLLER
 
 
 def register_controllers() -> None:

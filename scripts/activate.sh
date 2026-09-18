@@ -1,5 +1,5 @@
 # Source this file: source scripts/activate.sh
-export YCB_PROJECT=/home/vlakbnn/jiajunl4/YCB_Object
+export YCB_PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . /home/vlakbnn/miniconda3/etc/profile.d/conda.sh
 unset CONDA_ENVS_PATH
 unset CONDA_PKGS_DIRS
