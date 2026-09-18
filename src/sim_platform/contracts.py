@@ -31,6 +31,13 @@ class RobotDefinition:
     capabilities: frozenset[str]
     action_joint_names: tuple[str, ...]
     lower_body_joint_names: tuple[str, ...]
+    waist_joint_names: tuple[str, ...]
+    left_arm_joint_names: tuple[str, ...]
+    right_arm_joint_names: tuple[str, ...]
+    left_hand_joint_names: tuple[str, ...]
+    right_hand_joint_names: tuple[str, ...]
+    left_fingertip_body_names: tuple[str, ...]
+    right_fingertip_body_names: tuple[str, ...]
     left_end_effector: str
     right_end_effector: str
     configure_scene: SceneBuilder = field(compare=False, repr=False)
@@ -41,7 +48,9 @@ class ObjectSetDefinition:
     component_id: str
     capabilities: frozenset[str]
     entity_roles: dict[str, str]
-    configure_scene: Callable[[Any, WorldDefinition], None] = field(compare=False, repr=False)
+    configure_scene: Callable[[Any, WorldDefinition, RobotDefinition, ObjectSetDefinition], None] = field(
+        compare=False, repr=False
+    )
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -56,6 +65,7 @@ class SensorRigDefinition:
 @dataclass(frozen=True)
 class TaskDefinition:
     component_id: str
+    instruction: str
     required_world_capabilities: frozenset[str]
     required_robot_capabilities: frozenset[str]
     required_object_capabilities: frozenset[str]
@@ -69,6 +79,7 @@ class ControllerDefinition:
     component_id: str
     required_robot_capabilities: frozenset[str]
     factory: Callable[[Any, RobotDefinition, bool], Any] = field(compare=False, repr=False)
+    behavior_prompt: str | None = None
 
 
 @dataclass(frozen=True)

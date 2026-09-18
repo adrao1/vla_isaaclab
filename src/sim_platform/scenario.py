@@ -48,6 +48,10 @@ class ScenarioEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
+        self.sim.physics_material.static_friction = 0.8
+        self.sim.physics_material.dynamic_friction = 0.65
+        self.sim.physics_material.restitution = 0.02
+        self.sim.physics_material.friction_combine_mode = "max"
         self.rerender_on_reset = True
         self.wait_for_textures = True
 
@@ -70,7 +74,7 @@ def require(component_id, actual, required, kind):
         raise ValueError(f"{component_id} lacks required {kind} capabilities: {sorted(missing)}")
 
 
-def compose_scenario(selection: ScenarioSelection) -> ScenarioBundle:
+def compose_scenario(selection: ScenarioSelection, enable_sensors: bool = True) -> ScenarioBundle:
     world = get("worlds", selection.world)
     robot = get("robots", selection.robot)
     objects = get("objects", selection.objects)
@@ -89,13 +93,14 @@ def compose_scenario(selection: ScenarioSelection) -> ScenarioBundle:
     world.configure_scene(cfg.scene, world)
     robot.configure_scene(cfg.scene, world)
     objects.configure_scene(cfg.scene, world)
-    sensors.configure_scene(cfg.scene, world)
-    task.configure_scene(cfg.scene, world)
+    if enable_sensors:
+        sensors.configure_scene(cfg.scene, world)
+    task.configure_scene(cfg.scene, world, robot, objects)
 
     @configclass
     class ActionsCfg:
         upper_body = UpperBodyJointActionCfg(
-            asset_name="robot", joint_names=list(robot.action_joint_names), scale=0.75
+            asset_name="robot", joint_names=list(robot.action_joint_names), use_joint_limits=True
         )
 
     cfg.actions = ActionsCfg()
@@ -109,7 +114,9 @@ def compose_scenario(selection: ScenarioSelection) -> ScenarioBundle:
         "objects": selection.objects,
         "object_set_metadata": objects.metadata,
         "sensors": selection.sensors,
+        "sensors_enabled": enable_sensors,
         "task": selection.task,
+        "task_instruction": task.instruction,
         "controller": selection.controller,
         "support_height": world.support_height,
         "reach_target": world.reach_target,

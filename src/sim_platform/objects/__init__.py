@@ -2,6 +2,7 @@
 
 from .dinnerware import DINNERWARE_OBJECTS
 from .empty import EMPTY_OBJECTS
+from .microwave import MICROWAVE_OBJECTS
 from .ycb import YCB_BASIC_OBJECTS
 
 
@@ -11,3 +12,4 @@ def register_object_sets() -> None:
     register("objects", EMPTY_OBJECTS)
     register("objects", DINNERWARE_OBJECTS)
     register("objects", YCB_BASIC_OBJECTS)
+    register("objects", MICROWAVE_OBJECTS)

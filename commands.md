@@ -62,6 +62,43 @@ check_install_environment
   --steps 300
 ```
 
+### 微波炉桌面场景
+
+运行 G1、白色桌面和微波炉场景，机器人保持站立，微波炉门保持关闭：
+
+```bash
+./scripts/run_scenario.sh \
+  --headless \
+  --world World-MicrowaveTabletop-v0 \
+  --objects Objects-Microwave-v0 \
+  --task Task-ScenePreview-v0 \
+  --controller Controller-Standing-v0 \
+  --steps 240 \
+  --preview-video outputs/previews/microwave_tabletop_standing.mp4
+```
+
+重新转换和检查已经随项目保存的微波炉 MJCF（约 1.5 MB，无额外下载）：
+
+```bash
+./scripts/prepare_microwave_asset.sh
+python scripts/inspect_microwave_asset.py --headless
+```
+
+### YCB 物体场景预览
+
+预览 cracker box、sugar box、tomato soup can 和 mustard bottle：
+
+```bash
+./scripts/run_scenario.sh \
+  --headless \
+  --world World-Tabletop-v0 \
+  --objects Objects-YCB-Basic-v0 \
+  --task Task-ScenePreview-v0 \
+  --controller Controller-Standing-v0 \
+  --steps 240 \
+  --preview-video outputs/previews/ycb_scene_preview.mp4
+```
+
 ## 数据录制与回放
 
 ### LeRobot Dataset v3
