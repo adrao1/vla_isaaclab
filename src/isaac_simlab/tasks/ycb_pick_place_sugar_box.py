@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import torch
 
 import isaaclab.envs.mdp as base_mdp
@@ -22,12 +24,12 @@ from ..contracts import TaskDefinition
 # robot-right (-base Y) is world +X.
 ROBOT_RIGHT_WORLD = (1.0, 0.0, 0.0)
 SUGAR_BOX_HALF_HEIGHT_M = 0.088
-# The YCB asset already needs a +90 degree X rotation to stand upright. Apply
-# an additional +90 degree world-Z yaw so its narrow/wide tabletop axes swap.
-SUGAR_BOX_ROTATED_90_WXYZ = (0.5, 0.5, 0.5, 0.5)
-# Close to the left hand, while retaining clearance from the robot-side edge.
-INITIAL_XY = (-0.18, -0.25)
-TARGET_DISPLACEMENT_M = 0.02
+# Upright box with tabletop yaw fitted to the three-finger closing envelope.
+SUGAR_BOX_ORIENTATION_WXYZ = (0.6728436464587195, 0.6728436464587194, 0.21744292911045365, 0.21744292911045368)
+SUGAR_BOX_TABLE_YAW_RAD = 0.6251518035481555
+# Initial layout fitted jointly with the reachable wrist pose and finger geometry.
+INITIAL_XY = (0.010509244994595768, -0.2904894446620847)
+TARGET_DISPLACEMENT_M = -0.02
 
 
 def left_ee_pose(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -57,7 +59,7 @@ def target_pose(env: ManagerBasedEnv, support_height: float) -> torch.Tensor:
             INITIAL_XY[0] + TARGET_DISPLACEMENT_M,
             INITIAL_XY[1],
             support_height + SUGAR_BOX_HALF_HEIGHT_M,
-            *SUGAR_BOX_ROTATED_90_WXYZ,
+            *SUGAR_BOX_ORIENTATION_WXYZ,
         ],
         device=env.device,
     )
@@ -90,11 +92,13 @@ def task_success(
 ) -> torch.Tensor:
     metrics = task_metrics(env, palm_body_name, support_height)
     instantaneous = (
-        (metrics["xy_error"] < 0.008)
+        (metrics["xy_error"] < 0.015)
         & (metrics["height_error"] < 0.015)
         & (metrics["linear_speed"] < 0.04)
         & (metrics["angular_speed"] < 0.30)
-        & (metrics["hand_distance"] > 0.14)
+        # The grasp itself places the palm about 18 cm from the box root.
+        # Require withdrawal beyond that distance before accepting placement.
+        & (metrics["hand_distance"] > 0.20)
     )
     counter = getattr(env, "task_success_counter", None)
     if counter is None or counter.shape[0] != env.num_envs:
@@ -127,7 +131,7 @@ def configure_scene(scene, world, robot, objects) -> None:
         INITIAL_XY[1],
         world.support_height + SUGAR_BOX_HALF_HEIGHT_M,
     )
-    scene.object.init_state.rot = SUGAR_BOX_ROTATED_90_WXYZ
+    scene.object.init_state.rot = SUGAR_BOX_ORIENTATION_WXYZ
     scene.target_marker = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/SugarBoxTarget",
         spawn=sim_utils.CuboidCfg(
@@ -139,7 +143,7 @@ def configure_scene(scene, world, robot, objects) -> None:
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(INITIAL_XY[0] + TARGET_DISPLACEMENT_M, INITIAL_XY[1], world.support_height + 0.002),
-            rot=(0.70710678, 0.0, 0.0, 0.70710678),
+            rot=(math.cos(SUGAR_BOX_TABLE_YAW_RAD / 2), 0.0, 0.0, math.sin(SUGAR_BOX_TABLE_YAW_RAD / 2)),
         ),
     )
 
@@ -193,8 +197,8 @@ YCB_PICK_PLACE_SUGAR_BOX_TASK = TaskDefinition(
     component_id="Task-YCBPickPlaceSugarBox-v0",
     instruction=(
         "Approach and grasp the rotated YCB 004 sugar box from the robot-facing side, "
-        "move it 2 cm toward robot-right "
-        "(world +X), and place it back on the table."
+        "move it 2 cm toward robot-left "
+        "(world -X), and place it back on the table."
     ),
     required_world_capabilities=frozenset({"support_surface", "object_spawn_region", "target_region"}),
     required_robot_capabilities=frozenset({"fixed_base", "upper_body_joint_control", "left_end_effector"}),

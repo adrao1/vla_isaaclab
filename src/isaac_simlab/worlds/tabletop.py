@@ -38,9 +38,9 @@ TABLETOP_WORLD = WorldDefinition(
         {"robot_spawn", "workspace", "support_surface", "object_spawn_region", "target_region", "camera_mount"}
     ),
     support_height=0.62,
-    # Leave additional clearance between the fixed G1 base/hand and the
-    # robot-side table edge.
-    robot_position=(0.0, -0.76, 0.74),
+    # Move the initial base 12 cm closer; the robot reset pose keeps its
+    # left hand above the tabletop rather than approaching below the edge.
+    robot_position=(0.0, -0.64, 0.74),
     robot_orientation_wxyz=(0.70710678, 0.0, 0.0, 0.70710678),
     # Offset the camera to image-left and aim diagonally toward the lower-right
     # manipulation region for a clearer view of the hand/object interaction.

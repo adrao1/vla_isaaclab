@@ -7,18 +7,21 @@ from dataclasses import dataclass
 
 import torch
 
-from isaaclab.utils.math import quat_apply, quat_error_magnitude, quat_slerp
+from isaaclab.utils.math import quat_apply, quat_conjugate, quat_mul, quat_error_magnitude, quat_slerp
 
 from ..contracts import EndEffectorTarget, ExpertDefinition
 
 
 PHASES = (
     "reset",
+    "move_to_turn_point",
+    "orient_hand",
     "move_pregrasp",
     "approach",
     "close_gripper",
     "lift",
-    "move_right",
+    "move_left",
+    "level_box",
     "lower",
     "open_gripper",
     "retreat",
@@ -38,13 +41,16 @@ LIMITS = {
     # clearance move immediately so the arm does not settle toward the box
     # before the first commanded motion.
     "reset": PhaseLimit(0, 0),
+    "move_to_turn_point": PhaseLimit(120, 300),
+    "orient_hand": PhaseLimit(90, 300),
     "move_pregrasp": PhaseLimit(100, 300),
     "approach": PhaseLimit(90, 240),
-    "close_gripper": PhaseLimit(75, 75),
+    "close_gripper": PhaseLimit(120, 120),
     "lift": PhaseLimit(90, 200),
-    "move_right": PhaseLimit(60, 150),
-    "lower": PhaseLimit(80, 180),
-    "open_gripper": PhaseLimit(45, 45),
+    "move_left": PhaseLimit(60, 150),
+    "level_box": PhaseLimit(100, 240),
+    "lower": PhaseLimit(120, 300),
+    "open_gripper": PhaseLimit(90, 120),
     "retreat": PhaseLimit(80, 180),
     "done": PhaseLimit(10_000_000, 10_000_000),
     "failed": PhaseLimit(10_000_000, 10_000_000),
@@ -53,14 +59,12 @@ LIMITS = {
 class YCBPickPlaceSugarBoxExpert:
     """Generate side-approach EE/gripper targets without implementing control."""
 
-    # Mean of the three open fingertips in the palm frame. Local +X is the
-    # hand's approach direction.
-    OPEN_FINGER_CENTER_PALM = (0.09598306, -0.01849499, 0.01195028)
-    # Grip the upper half of the upright box. The previous 0.025 m offset put
-    # the fingertips visibly too low; raise both pregrasp and grasp by 3 cm.
-    FINGER_CENTER_ABOVE_BOX_CENTER_M = 0.055
-    PREGRASP_CLEARANCE_M = 0.07
-    TARGET_WORLD_DELTA = (0.02, 0.0, 0.0)
+    PREGRASP_CLEARANCE_M = 0.0
+    TARGET_WORLD_DELTA = (-0.02, 0.0, 0.0)
+    # Offline FK candidate with open-hand clearance and joint-limit margin.
+    TURN_POINT_WORLD = (-0.20000000000003018, -0.44859374354722326, 0.8520679715251525)
+    GRASP_QUAT_WXYZ = (0.838739529885833, -0.0562443579616566, 0.0882924479819968, 0.5343753520080425)
+    GRASP_OFFSET_WORLD = (-0.10779687797449515, -0.11014619853853247, 0.07505996064897658)
 
     def __init__(self, env, robot_definition, object_definition):
         self.env = env
@@ -71,9 +75,9 @@ class YCBPickPlaceSugarBoxExpert:
             [robot_definition.left_end_effector], preserve_order=True
         )
         self.palm_body_id = palm_ids[0]
-        self.open_finger_center_palm = torch.tensor(
-            self.OPEN_FINGER_CENTER_PALM, device=env.device
-        ).unsqueeze(0)
+        self.hand_joint_ids, _ = self.robot.find_joints(
+            list(robot_definition.left_hand_joint_names), preserve_order=True
+        )
         self.sugar_box_height_m = float(
             object_definition.metadata["sugar_box_dimensions_m"][2]
         )
@@ -100,6 +104,12 @@ class YCBPickPlaceSugarBoxExpert:
         self.last_position_error = float("inf")
         self.last_orientation_error = float("inf")
         self.phase_history = []
+        self.orientation_ready_steps = 0
+        self.grasp_ready_steps = 0
+        self.measured_lift_rise_m = None
+        self.placement_ready_steps = 0
+        self.placement_box_pos = None
+        self.placement_box_quat = None
         self.phase_start_pos = palm_pos.clone()
         self.phase_start_quat = palm_quat.clone()
         self.target_pos = palm_pos.clone()
@@ -119,36 +129,21 @@ class YCBPickPlaceSugarBoxExpert:
         )
 
     def _compute_grasp(self) -> None:
-        palm_pos, palm_quat = self._palm_pose()
-        horizontal_delta = self.sugar_box.data.root_pos_w[:, :2] - palm_pos[:, :2]
-        horizontal_delta = horizontal_delta / torch.clamp(
-            torch.linalg.vector_norm(horizontal_delta, dim=-1, keepdim=True), min=1.0e-6
-        )
-        self.approach_direction = torch.cat(
-            (horizontal_delta, torch.zeros_like(horizontal_delta[:, :1])), dim=-1
-        )
-        # Use a level side-grasp orientation: local +X points horizontally at
-        # the box and local +Z stays vertical. The previous reachable-pose
-        # orientation tilted +X downward by about 39 degrees, causing the
-        # fingertips to contact the table before reaching the box.
-        desired_yaw = torch.atan2(horizontal_delta[:, 1], horizontal_delta[:, 0])
-        zeros = torch.zeros_like(desired_yaw)
-        self.grasp_quat = torch.stack(
-            (torch.cos(0.5 * desired_yaw), zeros, zeros, torch.sin(0.5 * desired_yaw)),
-            dim=-1,
-        )
+        # Fitted to the upright, yawed box and actual three-finger pad sweeps.
+        # Keep the reachable wrist tilt rather than forcing a level palm.
+        self.grasp_quat = self.sugar_box.data.root_pos_w.new_tensor(
+            [self.GRASP_QUAT_WXYZ]
+        ).repeat(self.env.num_envs, 1)
         self.travel_quat = self.grasp_quat.clone()
-        finger_center = self.sugar_box.data.root_pos_w.clone()
-        finger_center[:, 2] += self.FINGER_CENTER_ABOVE_BOX_CENTER_M
-        finger_offset = quat_apply(self.grasp_quat, self.open_finger_center_palm)
-        self.box_top_z = (
-            self.sugar_box.data.root_pos_w[:, 2] + 0.5 * self.sugar_box_height_m
+        self.approach_direction = quat_apply(
+            self.grasp_quat, self.grasp_quat.new_tensor([[1.0, 0.0, 0.0]]).repeat(self.env.num_envs, 1)
         )
-        self.grasp_depth_below_box_top_m = self.box_top_z - finger_center[:, 2]
-        self.grasp_pos = finger_center - finger_offset
-        self.pregrasp_pos = (
-            self.grasp_pos - self.PREGRASP_CLEARANCE_M * self.approach_direction
+        self.grasp_pos = self.sugar_box.data.root_pos_w + self.sugar_box.data.root_pos_w.new_tensor(
+            [self.GRASP_OFFSET_WORLD]
         )
+        self.pregrasp_pos = self.grasp_pos.clone()
+        self.box_top_z = self.sugar_box.data.root_pos_w[:, 2] + 0.5 * self.sugar_box_height_m
+        self.grasp_depth_below_box_top_m = None
         self.initial_box_pos = self.sugar_box.data.root_pos_w.clone()
 
     def _set_phase(self, phase: str, position, orientation, gripper: float) -> None:
@@ -157,6 +152,10 @@ class YCBPickPlaceSugarBoxExpert:
             {
                 "phase": self.phase,
                 "steps": self.phase_step,
+                "sugar_box_quat_wxyz": self.sugar_box.data.root_quat_w[0].detach().cpu().tolist(),
+                "palm_position_m": (palm_pos[0] - self.env.scene.env_origins[0]).detach().cpu().tolist(),
+                "palm_quat_wxyz": palm_quat[0].detach().cpu().tolist(),
+                "left_hand_joint_position_rad": self.robot.data.joint_pos[0, self.hand_joint_ids].detach().cpu().tolist(),
                 "sugar_box_position_m": (
                     self.sugar_box.data.root_pos_w[0] - self.env.scene.env_origins[0]
                 ).detach().cpu().tolist(),
@@ -168,6 +167,10 @@ class YCBPickPlaceSugarBoxExpert:
         self.phase_start_quat = palm_quat.clone()
         self.target_pos = position.clone()
         self.target_quat = orientation.clone()
+        if phase in ("move_pregrasp", "approach"):
+            # Rotation has its own stage. Translation keeps the same command
+            # orientation rather than interpolating another rotation near the box.
+            self.phase_start_quat = orientation.clone()
         self.gripper_start = self.gripper_target
         self.gripper_target = gripper
         self.env.expert_phase.fill_(self.phase_index)
@@ -207,6 +210,18 @@ class YCBPickPlaceSugarBoxExpert:
             return
         self._set_phase(phase, position, orientation, gripper)
 
+    def _palm_for_box_pose(self, box_pos, box_quat):
+        # Snapshot the physical grasp transform, without attaching the object.
+        palm_pos, palm_quat = self._palm_pose()
+        rotation = quat_mul(box_quat, quat_conjugate(self.sugar_box.data.root_quat_w))
+        return (box_pos + quat_apply(rotation, palm_pos - self.sugar_box.data.root_pos_w),
+                quat_mul(rotation, palm_quat))
+
+    def _box_tilt(self):
+        up = self.target_pos.new_tensor([[0.0, 1.0, 0.0]]).repeat(self.env.num_envs, 1)
+        axis = quat_apply(self.sugar_box.data.root_quat_w, up)
+        return torch.acos(axis[:, 2].clamp(-1.0, 1.0))
+
     def _transition(self) -> None:
         if self.phase in ("done", "failed"):
             return
@@ -220,14 +235,52 @@ class YCBPickPlaceSugarBoxExpert:
         timed_out = self.phase_step > LIMITS[self.phase].maximum_steps
         if self.phase == "reset" and timed_out:
             self._compute_grasp()
-            self._set_phase("move_pregrasp", self.pregrasp_pos, self.travel_quat, 0.0)
+            palm_pos, palm_quat = self._palm_pose()
+            turn_point = palm_pos.new_tensor([self.TURN_POINT_WORLD]) + self.env.scene.env_origins
+            self._set_phase("move_to_turn_point", turn_point, palm_quat, 0.0)
+        elif self.phase == "move_to_turn_point":
+            self._advance_if_ready("orient_hand", self.target_pos, self.grasp_quat, 0.0)
+        elif self.phase == "orient_hand":
+            self._pose_ready()
+            # Require a settled orientation before any forward target is issued.
+            ready = (self.last_position_error < 0.025
+                     and self.last_orientation_error < math.radians(5.0))
+            self.orientation_ready_steps = self.orientation_ready_steps + 1 if ready else 0
+            if (self.phase_step >= LIMITS[self.phase].minimum_steps
+                    and self.orientation_ready_steps >= 10):
+                # Account for initial physical settling before the final approach.
+                self.grasp_pos = self.sugar_box.data.root_pos_w + self.sugar_box.data.root_pos_w.new_tensor(
+                    [self.GRASP_OFFSET_WORLD]
+                )
+                self.pregrasp_pos = self.grasp_pos.clone()
+                self._set_phase("move_pregrasp", self.pregrasp_pos, self.grasp_quat, 0.0)
+            elif timed_out:
+                self._fail(
+                    f"orient_hand pose timeout (position={self.last_position_error:.3f} m, "
+                    f"orientation={math.degrees(self.last_orientation_error):.1f} deg)"
+                )
         elif self.phase == "move_pregrasp":
-            self._advance_if_ready("approach", self.grasp_pos, self.grasp_quat, 0.0)
+            # The fitted open-hand envelope surrounds the box at this target.
+            # Require closer alignment before initiating all three fingers.
+            self._pose_ready()
+            ready = (self.last_position_error < 0.012
+                     and self.last_orientation_error < math.radians(5.0))
+            self.grasp_ready_steps = self.grasp_ready_steps + 1 if ready else 0
+            if (self.phase_step >= LIMITS[self.phase].minimum_steps
+                    and self.grasp_ready_steps >= 15):
+                palm_pos, palm_quat = self._palm_pose()
+                self.grasp_pos = palm_pos.clone()
+                self._set_phase("close_gripper", palm_pos, palm_quat, 1.0)
+            elif timed_out:
+                self._fail(
+                    f"move_pregrasp closure gate timeout (position={self.last_position_error:.3f} m, "
+                    f"orientation={math.degrees(self.last_orientation_error):.1f} deg)"
+                )
         elif self.phase == "approach":
             self._advance_if_ready("close_gripper", self.grasp_pos, self.grasp_quat, 1.0)
         elif self.phase == "close_gripper" and timed_out:
             palm_pos, palm_quat = self._palm_pose()
-            lift = palm_pos + palm_pos.new_tensor([[0.0, 0.0, 0.12]])
+            lift = palm_pos + palm_pos.new_tensor([[0.0, 0.0, 0.08]])
             self._set_phase("lift", lift, palm_quat, 1.0)
         elif self.phase == "lift":
             ready = self._pose_ready()
@@ -235,23 +288,62 @@ class YCBPickPlaceSugarBoxExpert:
                 rise = (
                     self.sugar_box.data.root_pos_w[0, 2] - self.initial_box_pos[0, 2]
                 ).item()
+                self.measured_lift_rise_m = rise
                 if rise < 0.045:
                     self._fail(f"grasp did not lift the sugar box (rise={rise:.3f} m)")
                 elif timed_out and not ready:
                     self._fail("lift pose timeout")
                 else:
                     palm_pos, palm_quat = self._palm_pose()
-                    delta = palm_pos.new_tensor([self.TARGET_WORLD_DELTA])
-                    self._set_phase("move_right", palm_pos + delta, palm_quat, 1.0)
-        elif self.phase == "move_right":
-            palm_pos, palm_quat = self._palm_pose()
-            lower = self.grasp_pos + self.grasp_pos.new_tensor([self.TARGET_WORLD_DELTA])
-            self._advance_if_ready("lower", lower, palm_quat, 1.0)
+                    self.placement_box_pos = self.initial_box_pos + palm_pos.new_tensor([self.TARGET_WORLD_DELTA])
+                    transport_box = self.placement_box_pos.clone()
+                    transport_box[:, 2] = self.sugar_box.data.root_pos_w[:, 2]
+                    move = palm_pos + transport_box - self.sugar_box.data.root_pos_w
+                    self._set_phase("move_left", move, palm_quat, 1.0)
+        elif self.phase == "move_left":
+            # Rotate the measured box height axis onto world +Z. This levels
+            # its bottom with minimum wrist rotation, retaining tabletop yaw.
+            box_quat = self.sugar_box.data.root_quat_w
+            up = self.target_pos.new_tensor([[0.0, 0.0, 1.0]]).repeat(self.env.num_envs, 1)
+            axis = quat_apply(box_quat, up.roll(-1, dims=1))
+            correction = torch.cat((1.0 + (axis * up).sum(-1, keepdim=True),
+                                    torch.linalg.cross(axis, up)), dim=-1)
+            correction = correction / torch.linalg.vector_norm(correction, dim=-1, keepdim=True).clamp_min(1e-6)
+            self.placement_box_quat = quat_mul(correction, box_quat)
+            position, orientation = self._palm_for_box_pose(
+                self.sugar_box.data.root_pos_w, self.placement_box_quat)
+            self._advance_if_ready("level_box", position, orientation, 1.0)
+        elif self.phase == "level_box":
+            self._pose_ready()
+            if self.phase_step >= LIMITS[self.phase].minimum_steps and self._box_tilt()[0] < math.radians(5):
+                position, orientation = self._palm_for_box_pose(self.placement_box_pos, self.placement_box_quat)
+                self._set_phase("lower", position, orientation, 1.0)
+            elif timed_out:
+                self._fail("box leveling timeout")
         elif self.phase == "lower":
-            self._advance_if_ready("open_gripper", self.target_pos, self.target_quat, 0.0)
+            box_pos = self.sugar_box.data.root_pos_w
+            error = self.placement_box_pos - box_pos
+            # Release near the support pose; a closed hand can sustain contact
+            # jitter even after the box reaches the table. Stability is still
+            # checked by the Task after release, not used to prevent opening.
+            ready = (abs(error[0, 2]) < 0.008 and torch.linalg.vector_norm(error[0, :2]) < 0.015
+                     and self._box_tilt()[0] < math.radians(8))
+            self.placement_ready_steps = self.placement_ready_steps + 1 if ready else 0
+            if self.phase_step >= LIMITS[self.phase].minimum_steps and self.placement_ready_steps >= 5:
+                palm_pos, palm_quat = self._palm_pose()
+                self._set_phase("open_gripper", palm_pos, palm_quat, 0.0)
+            elif timed_out:
+                self._fail("box did not settle level at placement pose")
+            elif self.phase_step >= LIMITS[self.phase].minimum_steps and self.phase_step % 15 == 0:
+                # Small object-based position corrections after the descent.
+                self.target_pos += error.clamp(-0.004, 0.004)
         elif self.phase == "open_gripper" and timed_out:
             palm_pos, palm_quat = self._palm_pose()
-            retreat = palm_pos + palm_pos.new_tensor([[0.0, 0.0, 0.16]])
+            # Withdraw along the approach direction before lifting the hand.
+            direction = quat_apply(palm_quat, palm_pos.new_tensor([[1.0, 0.0, 0.0]]).repeat(self.env.num_envs, 1))
+            direction[:, 2] = 0.0
+            direction /= torch.linalg.vector_norm(direction, dim=-1, keepdim=True)
+            retreat = palm_pos - 0.06 * direction
             self._set_phase("retreat", retreat, palm_quat, 0.0)
         elif self.phase == "retreat":
             palm_pos, palm_quat = self._palm_pose()
@@ -289,6 +381,7 @@ class YCBPickPlaceSugarBoxExpert:
         return {
             "phase": self.phase,
             "failed": self.failed,
+            "measured_lift_rise_m": self.measured_lift_rise_m,
             "failure_reason": self.failure_reason,
             "total_steps": self.total_step,
             "sugar_box_position_m": (
@@ -312,6 +405,10 @@ class YCBPickPlaceSugarBoxExpert:
             if self.grasp_depth_below_box_top_m is None
             else self.grasp_depth_below_box_top_m[0].item(),
             "pregrasp_clearance_m": self.PREGRASP_CLEARANCE_M,
+            "turn_point_world_m": list(self.TURN_POINT_WORLD),
+            "grasp_quat_wxyz": list(self.GRASP_QUAT_WXYZ),
+            "grasp_offset_world_m": list(self.GRASP_OFFSET_WORLD),
+            "left_hand_joint_names": list(self.definition.left_hand_joint_names),
             "approach_direction_world": None
             if self.approach_direction is None
             else self.approach_direction[0].detach().cpu().tolist(),
