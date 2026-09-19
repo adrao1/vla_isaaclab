@@ -1,21 +1,10 @@
-# Isaac Sim runtime data, shader caches, and temporary files
-outputs/runtime/
-outputs/tmp/
-outputs/datasets/
-outputs/scenarios/
-outputs/replay/
-outputs/lerobot/
-outputs/lerobot_staging/
-outputs/asset-inspection.json
-outputs/dinnerware-asset-inspection.json
+# Generated simulator output (local LeRobot datasets are preserved on disk).
+/outputs/
 
 # Reproducible downloaded/generated YCB dinnerware payloads
 assets/YCB/original/
 assets/YCB/dinnerware/024_bowl/
 assets/YCB/dinnerware/029_plate/
-
-# Generated logs
-outputs/*.log
 
 # Isaac Lab is a pinned upstream checkout with its own Git repository.
 /IsaacLab/

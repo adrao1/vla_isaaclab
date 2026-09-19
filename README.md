@@ -1,321 +1,167 @@
-# Composable Isaac Lab simulation
+# isaac_simlab
 
-This project is a composable Isaac Lab simulation platform. Its default scenario is a fixed-base Unitree G1 in front of a white table with scanned YCB `024_bowl` and `029_plate` objects. The baseline controller raises and lowers both arms so the complete action path can be tested before adding grasping or learned policies.
+`isaac_simlab` is a small, composable Isaac Lab framework for shared manipulation
+research. It keeps task meaning, scripted strategy, and robot control separate.
+
+```text
+Scenario
+├── World
+├── Robot
+├── Objects
+├── Sensors
+├── Task
+├── Expert       (optional)
+├── Controller
+└── Recorder     (optional)
+```
+
+For scripted manipulation, the runtime path is:
+
+```text
+Task state -> Expert -> EE pose + gripper target -> Controller
+          -> normalized action -> env.step() -> Isaac Lab ActionTerm -> robot
+```
+
+- **Task**: observations, reward, success, failure, and goal definition.
+- **Expert**: task-specific scripted phases and desired end-effector/gripper targets.
+- **Controller**: reusable IK/control that produces normalized environment actions.
+- **Robot**: asset, joints, limits, end effectors, and reset pose.
+- **Recorder**: physical observations, actions, camera data, and simulator metadata.
+
+There is deliberately no Command, Policy, or Action Adapter layer. Shared
+normalized-action conversion remains in `actions.py` and the Isaac Lab
+`ActionTerm`.
 
 ## Environment
 
 - Conda environment: `jiajunl_isaac`
-- Environment path: `/home/vlakbnn/miniconda3/envs/jiajunl_isaac`
-- Python: 3.10.21
-- Isaac Sim: 4.5.0.0
-- Isaac Lab: v2.0.2
-- PyTorch: 2.5.1+cu121
-- LeRobot: 0.4.3 (Dataset v3.0)
-- Tested GPU: NVIDIA GeForce RTX 4090, driver 550.144.03
+- Python 3.10.21
+- Isaac Sim 4.5.0.0
+- Isaac Lab v2.0.2
+- PyTorch 2.5.1+cu121
+- LeRobot 0.4.3 / Dataset v3
 
-Activate the isolated environment:
+Always activate the project environment before running Python:
 
 ```bash
-cd /home/vlakbnn/jiajunl4/isaaclab_manipulation
+cd /home/vlakbnn/jiajunl4/isaac_simlab
 source scripts/activate.sh
 check_install_environment
 ```
 
-The compatible LeRobot writer dependencies are already installed. To reproduce
-that installation in this same Conda environment, run:
-
-```bash
-./scripts/install_lerobot_dataset.sh
-```
-
-The script checks `python`, `pip`, and `conda info --envs` before every install
-command. It pins the Isaac-compatible PyTorch stack and installs LeRobot with
-`--no-deps`, preventing pip from replacing Isaac Sim's PyTorch packages.
-
-## Run the default scenario
-
-Headless validation with the arm raise/lower controller:
-
-```bash
-./scripts/validate_scenario.sh
-```
-
-Open the GUI until the window is closed:
-
-```bash
-./scripts/run_scenario.sh --steps 0
-```
-
-The default composition is:
+## Source layout
 
 ```text
-World-Tabletop-v0
-Robot-UnitreeG1-v0
-Objects-Dinnerware-v0
-Sensors-FixedRGBD-v0
-Task-PickPlace-v0
-Controller-RaiseLower-v0
+src/isaac_simlab/
+├── contracts.py
+├── registry.py
+├── scenario.py
+├── runtime.py
+├── actions.py
+├── worlds/
+├── robots/
+├── objects/
+├── sensors/
+├── tasks/
+├── experts/
+├── controllers/
+└── recording/
 ```
 
-The current `PickPlace` task defines observations, distance reward and success conditions. The baseline controller only raises and lowers the arms; it does not attempt a grasp.
-
-The bowl and plate start near the robot-facing edge of the table at XY
-`(-0.18, -0.24)` and `(0.12, -0.22)` meters.
-
-## Composition architecture
-
-```text
-Scenario
-├── World       geometry, semantic frames and regions
-├── Robot       asset, joint groups and end-effector names
-├── Objects     physical assets and task roles
-├── Sensors     world- or robot-mounted sensor rigs
-├── Task        observations, rewards and termination conditions
-├── Controller  scripted, IK, teleoperation or policy action source
-└── Recorder    actions, observations, state, sensor data and metadata
-```
-
-The registry validates component capabilities before creating the Isaac Lab environment. The composer then produces one `ManagerBasedRLEnvCfg`; tasks do not contain table prim paths or G1-specific joint names.
-
-Current registered components:
-
-| Kind | IDs |
-|---|---|
-| World | `World-Tabletop-v0`, `World-Pedestal-v0`, `World-MicrowaveTabletop-v0` |
-| Robot | `Robot-UnitreeG1-v0` |
-| Objects | `Objects-Dinnerware-v0`, `Objects-YCB-Basic-v0`, `Objects-Microwave-v0`, `Objects-None-v0` |
-| Sensors | `Sensors-FixedRGBD-v0` |
-| Tasks | `Task-PickPlace-v0`, `Task-Reach-v0`, `Task-BowlToPlate-v0`, `Task-ScenePreview-v0` |
-| Controllers | `Controller-Standing-v0`, `Controller-RaiseLower-v0`, `Controller-LeftHandBowlToPlate-v0` |
-
-List them from the executable registry:
+List all registered components:
 
 ```bash
 ./scripts/run_scenario.sh --headless --list-components
 ```
 
-Example alternative composition:
+## Reference scenarios
 
-```bash
-./scripts/run_scenario.sh \
-  --headless \
-  --world World-Pedestal-v0 \
-  --objects Objects-None-v0 \
-  --task Task-Reach-v0 \
-  --controller Controller-Standing-v0 \
-  --steps 300
-```
+### Scene preview
 
-## Microwave tabletop scene
-
-The appliance preview composes a fixed-base G1, white table, fixed RGB-D camera,
-and an existing articulated microwave while the robot holds its standing pose:
-
-```bash
-./scripts/run_scenario.sh \
-  --headless \
-  --world World-MicrowaveTabletop-v0 \
-  --objects Objects-Microwave-v0 \
-  --task Task-ScenePreview-v0 \
-  --controller Controller-Standing-v0 \
-  --steps 240 \
-  --preview-video outputs/previews/microwave_tabletop_standing.mp4
-```
-
-The microwave comes from `vikashplus/furniture_sim` commit
-`c97995afb81c9e2d7325b0069f9abc9a2c74a2f0` under Apache-2.0. The vendored
-source plus generated USD occupy about 1.5 MB. Its physical door is connected by
-the existing `micro0joint` revolute joint with range `[-2.094, 0]` radians. This
-preview keeps the door closed and does not command it. Regenerate the USD with:
-
-```bash
-./scripts/prepare_microwave_asset.sh
-python scripts/inspect_microwave_asset.py --headless
-```
-
-## YCB scene preview
-
-`Task-ScenePreview-v0` is object-set independent and can also preview the four
-cached physics-enabled YCB assets: cracker box, sugar box, tomato soup can and
-mustard bottle. The robot holds its standing pose:
+This scenario needs no Expert. The Standing Controller maps the G1 default
+physical joint targets to the normalized 25-dimensional environment action.
 
 ```bash
 ./scripts/run_scenario.sh \
   --headless \
   --world World-Tabletop-v0 \
+  --robot Robot-UnitreeG1-v0 \
   --objects Objects-YCB-Basic-v0 \
+  --sensors Sensors-FixedRGBD-v0 \
   --task Task-ScenePreview-v0 \
   --controller Controller-Standing-v0 \
   --steps 240 \
-  --preview-video outputs/previews/ycb_scene_preview.mp4
+  --preview-video outputs/previews/isaac_simlab_scene_preview.mp4
 ```
 
-The mustard bottle has its own axis conversion so it starts upright with its
-cap pointing up. All four objects must be finite, above the table and below the
-runner's stability speed threshold for the validation report to pass.
+The YCB set contains `003_cracker_box`, `004_sugar_box`,
+`005_tomato_soup_can`, and `006_mustard_bottle`. This validates the G1, white
+table, objects, RGB-D camera, registry, scenario composition, and normalized
+action path.
 
-## Source layout
+### Sugar-box pick and place
+
+The deterministic task loads only `004_sugar_box`. The left hand first rises,
+moves horizontally above the object, rotates its fingers downward, descends,
+grasps, moves the box 2 cm toward robot right, and places it on the table. In
+this setup robot right is base `-Y`, which is world `+X`.
+
+Composition:
 
 ```text
-src/sim_platform/
-├── contracts.py          # component interfaces
-├── registry.py           # component IDs and lookup
-├── scenario.py           # compatibility checks and environment composition
-├── runtime.py            # common ManagerBasedRLEnv runtime
-├── actions.py            # normalized robot action term
-├── worlds/               # tabletop and pedestal geometry/semantics
-├── robots/               # Unitree G1 adapter
-├── objects/              # dinnerware, YCB and empty object sets
-├── sensors/              # fixed RGB-D rig
-├── tasks/                # PickPlace and Reach manager configurations
-├── controllers/          # standing and arm raise/lower baselines
-└── recording/            # frame adapter, HDF5 staging and LeRobot v3 writer
+Objects-YCB-SugarBox-v0
+Task-YCBPickPlaceSugarBox-v0
+Expert-YCBPickPlaceSugarBox-v0
+Controller-LeftArmDifferentialIK-v0
 ```
 
-The old monolithic scene entry points were removed. `scripts/run_scenario.py` is
-the primary scenario runner. HDF5 and LeRobot each have separate inspection and
-replay utilities. Shell scripts activate and verify the correct Conda environment
-before passing arguments to Python.
+The Task owns the initial/target poses, 102-dimensional physical-state
+observation, reward, success, and termination. The Expert owns the deterministic
+phase machine and outputs only an end-effector pose plus gripper fraction. The
+Controller uses Isaac Lab `DifferentialIKController`, limits joint deltas and
+joint positions, merges the hand target, and uses the shared ActionTerm mapping
+to produce a normalized 25-dimensional action.
 
-## Rates and interfaces
+The bounded runner uses a fresh Isaac process for every attempt, stops after at
+most three failures, and writes videos plus diagnostics under
+`outputs/videos/sugar_box_pick_place/`. No failed attempt is recorded as a
+successful demonstration.
+
+## Actions and rates
 
 - Physics: 120 Hz
-- Action/control: 30 Hz (`decimation=4`)
-- RGB-D camera: 30 Hz, 640×480
-- G1 action: 25 normalized waist, arm and hand joint commands
-- Lower body: 12 joints held at the default standing target
-- PickPlace policy observation: 89 values
-- Reach policy observation: 81 values
+- Control and RGB-D camera: 30 Hz
+- Environment action: 25 normalized controlled-joint commands
+- Observed joint position/velocity: physical radians and radians/second
+- The ActionTerm converts normalized actions back to physical joint targets
 
-## LeRobot recording pipeline
+## Recording and replay
 
-Record the default scenario as a local LeRobot Dataset v3 dataset. The default
-command records two episodes with 120 frames per episode:
+HDF5 remains the raw/debug format; LeRobot v3 is the training-oriented format.
+Both preserve physical robot state separately from normalized simulator action.
 
 ```bash
-./scripts/record_lerobot.sh
+./scripts/record_scenario.sh --dataset-name scenario_smoke
+./scripts/replay_dataset.sh outputs/datasets/scenario_smoke.hdf5 --headless
+
+./scripts/record_lerobot.sh --dataset-name lerobot_smoke
+./scripts/replay_lerobot.sh outputs/lerobot/lerobot_smoke --episode 0 --headless
 ```
 
-The resulting dataset is written to:
+Validated refactor smoke artifacts are available at
+`outputs/datasets/isaac_simlab_scene_preview_smoke.hdf5` and
+`outputs/lerobot/isaac_simlab_scene_preview_smoke/`; both were inspected and
+replayed successfully.
+
+## Contributor workflow
 
 ```text
-outputs/lerobot/g1_ycb_dinnerware_raise_lower/
-├── data/                         # Parquet state and action records
-├── videos/                       # 640x480, 30 Hz AV1 front-camera video
-└── meta/                         # features, episodes, tasks, stats and simulation manifest
+Need a new task                 -> add a Task
+Need scripted demonstrations   -> add an Expert
+Existing controller fits       -> reuse it
+Need a new control modality    -> add a reusable Controller
 ```
 
-Inspect the dataset and decode representative video frames:
-
-```bash
-python scripts/inspect_lerobot.py outputs/lerobot/g1_ycb_dinnerware_raise_lower
-```
-
-Replay episode 0 through Isaac Sim and save a new camera image:
-
-```bash
-./scripts/replay_lerobot.sh \
-  outputs/lerobot/g1_ycb_dinnerware_raise_lower \
-  --episode 0 \
-  --headless
-```
-
-The replay output is `outputs/replay/lerobot_rgb.png`, with a JSON report beside
-it. Recording and replay use a neutral temporary file between the LeRobot process
-and Isaac Sim process. This process boundary avoids loading PyAV/TorchVision and
-Omniverse native libraries into the same Python process.
-
-Recorded fields:
-
-| Field | Shape | Meaning |
-|---|---:|---|
-| `observation.state` | 25 | G1 controlled-joint positions in radians |
-| `observation.velocity` | 25 | G1 controlled-joint velocities in rad/s |
-| `action` | 25 | physical joint-position targets in radians |
-| `sim.action.normalized` | 25 | simulator action used for exact replay |
-| `observation.environment_state` | 28 | two end-effector poses and two object poses |
-| `observation.images.front` | 3x480x640 | RGB camera video |
-| `next.reward`, `next.done`, `next.success` | 1 | transition outcome |
-| `sim.seed` | 1 | episode reset seed |
-
-Custom recordings can select any registered scenario components:
-
-```bash
-./scripts/run_scenario.sh \
-  --headless \
-  --record-format lerobot \
-  --episodes 10 \
-  --steps 300 \
-  --dataset-name my_dataset \
-  --task-prompt "Raise and lower both arms."
-```
-
-Datasets are local and are not uploaded to Hugging Face Hub.
-
-## Native HDF5 recording
-
-The original compressed HDF5 backend remains useful for debugging RGB-D and raw
-Isaac Lab recorder output:
-
-```bash
-./scripts/record_scenario.sh --dataset-name g1_tabletop_raise_lower
-```
-
-Inspect and replay it:
-
-```bash
-python scripts/inspect_dataset.py outputs/datasets/g1_tabletop_raise_lower.hdf5
-./scripts/replay_dataset.sh outputs/datasets/g1_tabletop_raise_lower.hdf5 --headless
-```
-
-The HDF5 file contains component IDs, rates, simulator states, actions,
-observations, RGB, depth, camera calibration and task distance. Tensor datasets
-use lightweight gzip compression. Generated datasets remain under `outputs/`
-and are ignored by Git.
-
-## Assets and physics
-
-- Robot: Isaac Lab v2.0.2 Unitree G1 asset
-- Dinnerware: official YCB 16k textured scans, `024_bowl` and `029_plate` (CC BY 4.0)
-- Published bowl properties: 159 mm diameter, 53 mm height and 0.147 kg
-- Published plate properties: 258 mm diameter, 24 mm height and 0.279 kg
-- The preparation script preserves scan scale, centers XY, moves the lowest point to Z=0, and converts each mesh to a physics USD with convex decomposition collision
-- YCB: official Isaac Sim 4.5 `Axis_Aligned_Physics` assets cached locally
-
-Download and convert the two dinnerware assets reproducibly:
-
-```bash
-./scripts/prepare_ycb_dinnerware.sh
-```
-
-The two source archives total about 17.3 MB. Generated files and their source
-URLs, checksums, measured bounds and coordinate normalization are recorded in
-`assets/YCB/dinnerware/manifest.json`.
-
-Asset inspection tools remain available:
-
-```bash
-python scripts/inspect_assets.py
-python scripts/inspect_dinnerware_assets.py
-```
-
-## Adding components
-
-- World: create a `WorldDefinition`, publish semantic spawn/target regions and register it in `worlds/__init__.py`.
-- Robot: create a `RobotDefinition` with joint groups, end effectors and an Isaac Lab articulation configuration.
-- Task: define manager configurations and required capabilities, without hard-coded world prim paths or robot joint names.
-- Object set: expose entities through roles such as `manipulation_object` and `goal`.
-- Controller: produce the action vector exposed by the selected robot action term.
-- Sensor rig: use stable sensor names so recording consumers do not depend on prim paths.
-
-## Current limitations
-
-- The G1 root is fixed; balance and locomotion are outside the current task scope.
-- The arm raise/lower controller only validates the control interface.
-- PickPlace does not yet include IK, grasp phases or gripper logic.
-- The current LeRobot sample records the raise/lower control baseline with YCB dinnerware; it is not
-  a successful object pick-and-place demonstration.
-- Depth remains available in the HDF5 backend but is not part of the current
-  LeRobot RGB schema.
-- A future physical robot must provide its own adapter and validated joint mapping.
-- Long RGB-D datasets still require disk planning even with compression.
+Tasks must not contain scripted phases, IK, or joint control. Experts must not
+compute Jacobians, run differential IK, or normalize actions. Controllers must
+not contain object semantics, task phases, reward, or success logic.

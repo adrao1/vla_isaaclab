@@ -20,21 +20,16 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--world", default="World-Tabletop-v0")
     parser.add_argument("--robot", default="Robot-UnitreeG1-v0")
-    parser.add_argument("--objects", default="Objects-Dinnerware-v0")
+    parser.add_argument("--objects", default="Objects-YCB-Basic-v0")
     parser.add_argument("--sensors", default="Sensors-FixedRGBD-v0")
-    parser.add_argument("--task", default="Task-PickPlace-v0")
-    parser.add_argument("--controller", default="Controller-RaiseLower-v0")
+    parser.add_argument("--task", default="Task-ScenePreview-v0")
+    parser.add_argument("--expert", default=None)
+    parser.add_argument("--controller", default="Controller-Standing-v0")
     parser.add_argument("--steps", type=int, default=300, help="Control steps; 0 keeps a GUI run open.")
     parser.add_argument("--record-format", choices=("none", "hdf5", "lerobot"), default="none")
     parser.add_argument("--episodes", type=int, default=1)
     parser.add_argument("--dataset-name", default="scenario_demo")
     parser.add_argument("--task-prompt")
-    parser.add_argument("--stop-after-phase", help="Stop a staged controller after this phase for debugging.")
-    parser.add_argument(
-        "--debug-continue-on-timeout",
-        action="store_true",
-        help="Continue staged debug motion after a phase timeout instead of stopping the controller.",
-    )
     parser.add_argument(
         "--preview-video",
         type=Path,
@@ -73,10 +68,10 @@ from PIL import Image
 import isaacsim.core.utils.stage as stage_utils
 from isaaclab.managers import DatasetExportMode
 
-from sim_platform import ScenarioSelection, list_components, register_defaults
-from sim_platform.recording.recorder_cfg import ScenarioRecorderCfg
-from sim_platform.runtime import ScenarioEnv
-from sim_platform.scenario import compose_scenario
+from isaac_simlab import ScenarioSelection, list_components, register_defaults
+from isaac_simlab.recording.recorder_cfg import ScenarioRecorderCfg
+from isaac_simlab.runtime import ScenarioEnv
+from isaac_simlab.scenario import compose_scenario
 
 
 def safe_name(value: str) -> str:
@@ -95,11 +90,37 @@ def task_distance(env, bundle) -> float | None:
         palm = robot.data.body_pos_w[:, body_ids[0]] - env.scene.env_origins
         target = torch.tensor(bundle.world.reach_target, device=env.device).unsqueeze(0)
         return torch.linalg.vector_norm(palm - target, dim=-1)[0].item()
+    if bundle.selection.task == "Task-YCBPickPlaceSugarBox-v0":
+        obj = env.scene["object"]
+        target = torch.tensor(
+            [-0.16, -0.25], device=env.device
+        ).unsqueeze(0) + env.scene.env_origins[:, :2]
+        return torch.linalg.vector_norm(obj.data.root_pos_w[:, :2] - target, dim=-1)[0].item()
     if "object" in env.scene.rigid_objects and "goal" in env.scene.rigid_objects:
         obj = env.scene["object"]
         goal = env.scene["goal"]
         return torch.linalg.vector_norm(obj.data.root_pos_w - goal.data.root_pos_w, dim=-1)[0].item()
     return None
+
+
+def make_control_sources(env, bundle):
+    controller = bundle.controller.factory(env, bundle.robot, False)
+    expert = None
+    if bundle.expert is not None:
+        expert = bundle.expert.factory(env, bundle.robot, bundle.objects)
+    return expert, controller
+
+
+def compute_action(expert, controller, step):
+    motion_target = None if expert is None else expert.compute(step)
+    return controller.compute(motion_target, step)
+
+
+def task_succeeded(env, terminated) -> bool:
+    """Read success from the Task's named termination term when it has one."""
+    if "success" in env.termination_manager.active_terms:
+        return bool(env.termination_manager.get_term("success")[0].item())
+    return bool(terminated[0].item())
 
 
 def main() -> int:
@@ -125,6 +146,7 @@ def main() -> int:
         objects=ARGS.objects,
         sensors=ARGS.sensors,
         task=ARGS.task,
+        expert=ARGS.expert,
         controller=ARGS.controller,
     )
     bundle = compose_scenario(selection, enable_sensors=not ARGS.physics_only)
@@ -158,9 +180,7 @@ def main() -> int:
             target = torch.tensor([bundle.world.camera_target], device=env.device) + origin
             env.scene["camera"].set_world_poses_from_view(eye, target)
         env.reset()
-        env.controller_stop_after_phase = ARGS.stop_after_phase
-        env.controller_debug_continue = ARGS.debug_continue_on_timeout
-        controller = bundle.controller.factory(env, bundle.robot, False)
+        expert, controller = make_control_sources(env, bundle)
         initial_obs_dim = int(env.obs_buf["policy"].shape[-1])
 
         if ARGS.preview_video is not None:
@@ -190,9 +210,10 @@ def main() -> int:
         episodes_completed = 0
         terminated_count = 0
         timed_out_count = 0
+        success_count = 0
         if ARGS.record_format == "lerobot":
-            from sim_platform.recording.frame import ScenarioFrameAdapter
-            from sim_platform.recording.staging import StagingHDF5Writer
+            from isaac_simlab.recording.frame import ScenarioFrameAdapter
+            from isaac_simlab.recording.staging import StagingHDF5Writer
 
             adapter = ScenarioFrameAdapter(env, bundle)
             task_prompt = ARGS.task_prompt or bundle.controller.behavior_prompt or bundle.task.instruction
@@ -215,11 +236,14 @@ def main() -> int:
                 with torch.inference_mode():
                     for episode_index in range(ARGS.episodes):
                         env.reset(seed=cfg.seed + episode_index)
+                        expert, controller = make_control_sources(env, bundle)
                         episode_succeeded = False
                         for episode_step in range(finite_steps):
                             snapshot = adapter.capture()
-                            action = controller.compute(episode_step)
+                            action = compute_action(expert, controller, episode_step)
                             _, reward, terminated, timed_out, _ = env.step(action)
+                            expert_failed = expert is not None and getattr(expert, "failed", False)
+                            step_succeeded = task_succeeded(env, terminated) and not expert_failed
                             horizon = episode_step + 1 == finite_steps
                             writer.add_frame(
                                 adapter.complete_frame(
@@ -230,18 +254,20 @@ def main() -> int:
                                     horizon,
                                     task_prompt,
                                     cfg.seed + episode_index,
+                                    step_succeeded,
                                 )
                             )
                             terminated_count += int(terminated.sum().item())
-                            episode_succeeded = episode_succeeded or bool(terminated[0].item())
+                            success_count += int(step_succeeded)
+                            episode_succeeded = episode_succeeded or step_succeeded
                             timed_out_count += int(timed_out.sum().item())
                             steps += 1
                             if bool(terminated[0].item()) or bool(timed_out[0].item()):
                                 break
-                        if selection.task == "Task-BowlToPlate-v0" and not episode_succeeded:
-                            diagnostics = controller.diagnostics() if hasattr(controller, "diagnostics") else {}
+                        if selection.task == "Task-YCBPickPlaceSugarBox-v0" and not episode_succeeded:
+                            diagnostics = expert.diagnostics() if expert is not None else {}
                             raise RuntimeError(
-                                "Refusing to save a failed bowl-to-plate demonstration: "
+                                "Refusing to save a failed sugar-box demonstration: "
                                 + json.dumps(diagnostics)
                             )
                         writer.save_episode()
@@ -264,7 +290,8 @@ def main() -> int:
         else:
             with torch.inference_mode():
                 while APP.is_running() and (ARGS.steps == 0 or steps < ARGS.steps):
-                    _, _, terminated, timed_out, _ = env.step(controller.compute(steps))
+                    action = compute_action(expert, controller, steps)
+                    _, _, terminated, timed_out, _ = env.step(action)
                     if preview_stream is not None:
                         import av
 
@@ -273,8 +300,13 @@ def main() -> int:
                         for packet in preview_stream.encode(frame):
                             preview_container.mux(packet)
                     terminated_count += int(terminated.sum().item())
+                    success_count += int(task_succeeded(env, terminated))
                     timed_out_count += int(timed_out.sum().item())
                     steps += 1
+                    if expert is not None and getattr(expert, "failed", False):
+                        break
+                    if bool(terminated[0].item()) or bool(timed_out[0].item()):
+                        break
                     if ARGS.steps == 0 and ARGS.headless and steps >= finite_steps:
                         break
             episodes_completed = 1
@@ -336,7 +368,12 @@ def main() -> int:
             "rigid_objects": rigid_objects,
             "articulations": articulations,
             "terminated_count": terminated_count,
+            "success_count": success_count,
             "timed_out_count": timed_out_count,
+            "termination_terms": {
+                name: bool(env.termination_manager.get_term(name)[0].item())
+                for name in env.termination_manager.active_terms
+            },
             "recording_enabled": ARGS.record_format != "none",
             "recording_format": ARGS.record_format,
             "dataset": str(dataset_path) if dataset_path is not None else None,
@@ -344,15 +381,13 @@ def main() -> int:
         }
         if hasattr(controller, "diagnostics"):
             report["controller"] = controller.diagnostics()
-        object_height = bundle.objects.metadata.get("assets", {}).get("object", {}).get("published_dimensions_m", [0, 0, 0])[2]
-        if object_height:
-            bowl_top = env.scene["object"].data.root_pos_w[0, 2].item() + float(object_height)
-            report["left_end_effector_height_above_object_top_m"] = left_ee_position[2].item() - bowl_top
-        if selection.task == "Task-BowlToPlate-v0":
+        if expert is not None and hasattr(expert, "diagnostics"):
+            report["expert"] = expert.diagnostics()
+        if selection.task == "Task-YCBPickPlaceSugarBox-v0":
             report["passed"] = bool(
                 report["passed"]
-                and terminated_count > 0
-                and not report.get("controller", {}).get("failed", False)
+                and success_count > 0
+                and not report.get("expert", {}).get("failed", False)
             )
         (output_dir / "validation.json").write_text(json.dumps(report, indent=2) + "\n")
         print(json.dumps(report, indent=2), flush=True)
