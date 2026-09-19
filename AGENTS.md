@@ -109,18 +109,49 @@ Controller-LeftArmDifferentialIK-v0
 ```
 
 Robot right is base `-Y`, equal to world `+X` for the fixed placement. The task
-target is 0.02 m in world `+X` from the deterministic initial sugar-box pose.
-The Expert must rise first, translate above the box at a safe height, point the
-fingers downward, and only then descend to grasp.
+target is 0.02 m in world `-X` (robot left) from the deterministic initial sugar-box pose.
+The sugar box is upright with world-Z yaw 35.81856 degrees, starting at
+`(0.010509, -0.290489)` m. The hand uses a geometry-fitted side grasp with
+world yaw about 65 degrees and 12 degrees downward pitch. The calibrated palm
+offset from the box root is `(-0.107797, -0.110146, 0.075060)` m. All three
+fingers receive closing motion; the thumb base retains its opposing pose.
 
-## Current validated state (2026-09-18)
+The phase sequence is:
+
+```text
+reset -> move_to_turn_point -> orient_hand -> move_pregrasp -> close_gripper -> lift
+      -> move_left -> level_box -> lower -> open_gripper -> retreat -> done
+```
+
+## Current validated state (2026-09-19)
 
 - Package/imports, registries, and both reference compositions load.
 - ScenePreview rendered 240 steps with stable G1/YCB state and working camera.
 - HDF5 and LeRobot ScenePreview smoke episodes were inspected and replayed.
-- The previous cracker-box strategy failed three clean attempts because its
-  lateral approach pushed the object without lifting it. It has been replaced
-  by the sugar-box-only top-down reference task.
+- The tabletop contains only `004_sugar_box` for this composition. The fixed G1
+  base is at `(0.0, -0.64, 0.74)`. The torso starts centered; the left arm is
+  initialized behind the box, above table height, with palm at approximately
+  `(-0.1765, -0.4943, 0.7780)` m and the left hand open.
+- The Expert first moves to turn point `(-0.200, -0.448594, 0.852068)` m,
+  rotates there, then approaches. Closure requires <12 mm / <5 degrees for
+  15 consecutive steps and holds the measured palm pose. Closure takes 120
+  control steps; commanded lift is 8 cm. Torso yaw remains +/-25 degrees.
+- Latest recording run reached Task success at step 961 after opening and
+  withdrawal. The success XY tolerance is now 15 mm (was 8 mm), explicitly
+  approved by the user. Height <15 mm, linear speed <0.04 m/s, angular speed
+  <0.30 rad/s and 15 consecutive samples remain required. Palm distance must
+  now exceed 20 cm, rather than 14 cm, to avoid accepting a held box.
+- Release requires 5 consecutive samples with height error <8 mm, XY error
+  <15 mm, and tilt <8 degrees; no pre-release velocity gate. Opening takes
+  90 steps, followed by a hold until step 121 and horizontal withdrawal.
+- Verified LeRobot v3 dataset contains 961 frames at 30 Hz, one episode,
+  with next.success=true and next.done=true on the last frame.
+  Dataset: `outputs/lerobot/sugar_box_left_place_20260919/`.
+  Verified Parquet state/action finiteness, 961 decoded RGB frames, and an
+  official LeRobotDataset API read. Validation passed=true, success_count=1.
+  Recording log: `outputs/videos/sugar_box_lerobot_20260919/run.log`.
+  Release preview: `outputs/videos/sugar_box_release_20260919/`.
+  Offline USD geometry calculations: `outputs/analysis/sugar_box_three_finger/`.
 
 Do not claim that the sugar-box task succeeds unless the Task's `success`
 termination term fires, and never save a failed episode as a successful demo.

@@ -91,10 +91,10 @@ def task_distance(env, bundle) -> float | None:
         target = torch.tensor(bundle.world.reach_target, device=env.device).unsqueeze(0)
         return torch.linalg.vector_norm(palm - target, dim=-1)[0].item()
     if bundle.selection.task == "Task-YCBPickPlaceSugarBox-v0":
+        from isaac_simlab.tasks.ycb_pick_place_sugar_box import target_pose
+
         obj = env.scene["object"]
-        target = torch.tensor(
-            [-0.16, -0.25], device=env.device
-        ).unsqueeze(0) + env.scene.env_origins[:, :2]
+        target = target_pose(env, bundle.world.support_height)[:, :2] + env.scene.env_origins[:, :2]
         return torch.linalg.vector_norm(obj.data.root_pos_w[:, :2] - target, dim=-1)[0].item()
     if "object" in env.scene.rigid_objects and "goal" in env.scene.rigid_objects:
         obj = env.scene["object"]

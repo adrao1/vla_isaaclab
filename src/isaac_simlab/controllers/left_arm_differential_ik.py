@@ -6,7 +6,9 @@ import math
 
 import torch
 
-from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from isaaclab.utils.math import compute_pose_error
+
+from .bounded_ik import bounded_dls
 
 from ..contracts import ControllerDefinition, EndEffectorTarget
 
@@ -51,38 +53,20 @@ class LeftArmDifferentialIKController:
         palm_ids, _ = self.robot.find_bodies([robot_definition.left_end_effector], preserve_order=True)
         self.palm_body_id = palm_ids[0]
         self.palm_jacobian_id = self.palm_body_id - 1 if self.robot.is_fixed_base else self.palm_body_id
-        self.pose_ik = DifferentialIKController(
-            DifferentialIKControllerCfg(
-                command_type="pose",
-                use_relative_mode=False,
-                ik_method="pinv",
-                ik_params={"k_val": 0.1},
-            ),
-            env.num_envs,
-            env.device,
-        )
-        self.position_ik = DifferentialIKController(
-            DifferentialIKControllerCfg(
-                command_type="position",
-                use_relative_mode=False,
-                ik_method="pinv",
-                ik_params={"k_val": 0.1},
-            ),
-            env.num_envs,
-            env.device,
-        )
-        # A small resolved-rate step avoids component-wise clipping from
-        # changing the Cartesian direction near singular arm poses.
+        # Limit successive commands, not their error from measured joints.
+        # A bounded tracking allowance lets PD torque build against gravity.
         self.max_joint_delta = 0.025
-        self.max_torso_deviation = math.radians(10.0)
+        self.max_tracking_error = 0.35
+        self.max_torso_deviation = math.radians(25.0)
+        self.ik_gain = 0.15
+        self.ik_damping = 0.04
+        self.orientation_weight = 0.20
         self.last_joint_targets = self.robot.data.joint_pos[:, self.arm_joint_ids].clone()
         self.last_mode = "pose"
         self.compute_count = 0
         self.debug_samples = []
 
     def reset(self) -> None:
-        self.pose_ik.reset()
-        self.position_ik.reset()
         self.last_joint_targets = self.robot.data.joint_pos[:, self.arm_joint_ids].clone()
         self.compute_count = 0
         self.debug_samples = []
@@ -100,33 +84,46 @@ class LeftArmDifferentialIKController:
         current_arm = self.robot.data.joint_pos[:, self.arm_joint_ids]
         if target.orientation is None:
             self.last_mode = "position"
-            self.position_ik.set_command(target.position, ee_quat=palm_quat)
-            # Keep torso yaw fixed during unconstrained clearance motion. This
-            # avoids null-space drift; full 6-DoF pose phases can use it later.
-            raw_targets = current_arm.clone()
-            raw_targets[:, 1:] = self.position_ik.compute(
-                palm_pos, palm_quat, jacobian[:, :, 1:], current_arm[:, 1:]
-            )
+            error = target.position - palm_pos
+            task_jacobian = jacobian[:, :3].clone()
+            task_jacobian[:, :, 0] = 0.0
         else:
             self.last_mode = "pose"
-            self.pose_ik.set_command(torch.cat((target.position, target.orientation), dim=-1))
-            raw_targets = self.pose_ik.compute(
-                palm_pos, palm_quat, jacobian, current_arm
+            position_error, rotation_error = compute_pose_error(
+                palm_pos, palm_quat, target.position, target.orientation,
+                rot_error_type="axis_angle",
             )
-        arm_targets = current_arm + torch.clamp(
-            raw_targets - current_arm, min=-self.max_joint_delta, max=self.max_joint_delta
-        )
+            error = torch.cat((position_error, self.orientation_weight * rotation_error), dim=-1)
+            task_jacobian = jacobian.clone()
+            task_jacobian[:, 3:] *= self.orientation_weight
+
         limits = self.robot.data.soft_joint_pos_limits[:, self.arm_joint_ids]
-        arm_targets = torch.clamp(arm_targets, limits[..., 0], limits[..., 1])
+        lower, upper = limits[..., 0].clone(), limits[..., 1].clone()
         torso_center = self.robot.data.default_joint_pos[:, self.arm_joint_ids[0]]
-        arm_targets[:, 0] = torch.clamp(
-            arm_targets[:, 0],
-            torso_center - self.max_torso_deviation,
-            torso_center + self.max_torso_deviation,
-        )
+        lower[:, 0] = torch.maximum(lower[:, 0], torso_center - self.max_torso_deviation)
+        upper[:, 0] = torch.minimum(upper[:, 0], torso_center + self.max_torso_deviation)
+        # Anti-windup: project the persistent command into the tracking window.
+        reference = torch.clamp(self.last_joint_targets,
+                                current_arm - self.max_tracking_error,
+                                current_arm + self.max_tracking_error)
+        reference = torch.clamp(reference, lower, upper)
+        delta_lower = torch.maximum(lower - reference, torch.full_like(reference, -self.max_joint_delta))
+        delta_upper = torch.minimum(upper - reference, torch.full_like(reference, self.max_joint_delta))
+        delta_lower = torch.maximum(delta_lower, current_arm - self.max_tracking_error - reference)
+        delta_upper = torch.minimum(delta_upper, current_arm + self.max_tracking_error - reference)
+        # Physical position bounds take precedence if physics crosses a limit.
+        delta_lower = torch.minimum(delta_lower, torch.zeros_like(delta_lower))
+        delta_upper = torch.maximum(delta_upper, torch.zeros_like(delta_upper))
+        if target.orientation is None:
+            delta_lower[:, 0] = 0.0
+            delta_upper[:, 0] = 0.0
+        correction = bounded_dls(task_jacobian, self.ik_gain * error,
+                                 delta_lower, delta_upper, self.ik_damping)
+        raw_targets = reference + correction
+        arm_targets = torch.clamp(raw_targets, lower, upper)
         self.last_joint_targets = arm_targets.clone()
         self.compute_count += 1
-        if self.compute_count in {1, 2, 5, 10, 25, 50, 100, 150, 200}:
+        if self.compute_count in {1, 2, 5, 10, 25} or self.compute_count % 50 == 0:
             self.debug_samples.append(
                 {
                     "step": self.compute_count,
@@ -163,6 +160,8 @@ class LeftArmDifferentialIKController:
             "left_ee_position_m": palm_pos.detach().cpu().tolist(),
             "max_joint_delta_rad": self.max_joint_delta,
             "max_torso_deviation_rad": self.max_torso_deviation,
+            "max_tracking_error_rad": self.max_tracking_error,
+            "ik_method": "bounded_dls_accumulated_command",
             "ik_mode": self.last_mode,
             "debug_samples": self.debug_samples,
         }
