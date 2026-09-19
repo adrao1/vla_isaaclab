@@ -28,6 +28,8 @@ from isaacsim.core.utils.extensions import enable_extension
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 from pxr import Usd, UsdPhysics
 
+from usd_asset_paths import relativize_project_paths
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -58,6 +60,11 @@ def main() -> None:
     output = Path(converter.usd_path)
     if not output.is_file():
         raise RuntimeError(f"MJCF conversion did not create {output}")
+    rewritten_paths = relativize_project_paths(output.parent, PROJECT)
+    portable_paths = {
+        layer: sorted({relative_path for _, relative_path in replacements})
+        for layer, replacements in rewritten_paths.items()
+    }
     # Isaac Sim 4.5's MJCF importer applies ArticulationRootAPI to two empty
     # organizational prims as well as the actual microwave root.  Isaac Lab
     # requires exactly one root below the configured asset path.  Remove only
@@ -77,6 +84,12 @@ def main() -> None:
         if prim:
             prim.SetActive(False)
     stage.GetRootLayer().Save()
+    del stage
+    converter_config = output.parent / "config.yaml"
+    if converter_config.is_file():
+        config_text = converter_config.read_text()
+        config_text = config_text.replace(str(PROJECT) + "/", "")
+        converter_config.write_text(config_text)
     manifest = {
         "name": "furniture_sim microwave",
         "source": "https://github.com/vikashplus/furniture_sim",
@@ -90,9 +103,10 @@ def main() -> None:
         "door_joint": "micro0joint",
         "door_joint_range_rad": [-2.094, 0.0],
         "articulation_root": "/microwave/microroot",
+        "relative_asset_paths": portable_paths,
         "postprocess": (
             "Removed duplicate ArticulationRootAPI markers and deactivated the empty showcase wrapper "
-            "body/fixed joint emitted by the importer."
+            "body/fixed joint emitted by the importer. Rewrote project-local USD dependencies as relative paths."
         ),
     }
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")

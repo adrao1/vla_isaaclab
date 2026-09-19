@@ -1,7 +1,7 @@
 # 常用命令
 
 ```bash
-cd <isaac_simlab-checkout>
+cd <vla_isaaclab-checkout>
 conda activate <developer-env>
 source scripts/activate.sh
 check_install_environment
@@ -21,7 +21,7 @@ check_install_environment
   --task Task-ScenePreview-v0 \
   --controller Controller-Standing-v0 \
   --steps 240 \
-  --preview-video outputs/previews/isaac_simlab_scene_preview.mp4
+  --preview-video outputs/previews/vla_isaaclab_scene_preview.mp4
 ```
 
 HDF5 录制、检查与回放：
