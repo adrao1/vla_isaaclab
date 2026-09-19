@@ -30,9 +30,9 @@ import numpy as np
 import torch
 from PIL import Image
 
-from sim_platform import ScenarioSelection, register_defaults
-from sim_platform.runtime import ScenarioEnv
-from sim_platform.scenario import compose_scenario
+from isaac_simlab import ScenarioSelection, register_defaults
+from isaac_simlab.runtime import ScenarioEnv
+from isaac_simlab.scenario import compose_scenario
 
 
 def main() -> int:
@@ -50,6 +50,7 @@ def main() -> int:
         objects=metadata["objects"],
         sensors=metadata["sensors"],
         task=metadata["task"],
+        expert=metadata.get("expert"),
         controller=metadata["controller"],
     )
     bundle = compose_scenario(selection)

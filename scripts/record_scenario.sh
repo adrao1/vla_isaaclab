@@ -2,5 +2,5 @@
 set -e
 source "$(dirname "$0")/activate.sh"
 check_install_environment
-cd "$YCB_PROJECT"
+cd "$ISAAC_SIMLAB_PROJECT"
 exec python scripts/run_scenario.py --headless --record-format hdf5 --steps 120 "$@"

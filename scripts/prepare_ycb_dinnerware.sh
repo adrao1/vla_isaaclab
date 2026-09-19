@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname "$0")/activate.sh"
 check_install_environment
-cd "$YCB_PROJECT"
+cd "$ISAAC_SIMLAB_PROJECT"
 
 python scripts/prepare_ycb_dinnerware.py
 

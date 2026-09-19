@@ -2,7 +2,7 @@
 set -e
 
 source "$(dirname "$0")/activate.sh"
-cd "$YCB_PROJECT"
+cd "$ISAAC_SIMLAB_PROJECT"
 
 check_install_environment
 python -m pip install -c configs/lerobot-constraints.txt \
