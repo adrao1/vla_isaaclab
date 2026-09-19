@@ -102,8 +102,7 @@ but it does not download Isaac Lab.
 
 ### New developer setup
 
-Choose your own Conda environment name; the project does not require a shared
-environment name:
+Choose your own Conda environment name:
 
 ```bash
 git clone <this-repository-url> vla_isaaclab
@@ -270,6 +269,51 @@ normalized simulation action
 
 into actions executable by the Isaac Lab `ActionTerm`. Physical state and
 normalized simulation actions are stored separately in recorded datasets.
+
+## Component registration and selection
+
+Each World, Robot, Objects, Sensors, Task, Expert, and Controller definition
+has a unique `component_id`. The corresponding package `__init__.py` registers
+the definition with `src/vla_isaaclab/registry.py`. At startup,
+`register_defaults()` loads those registrations, and command-line values such
+as `--world World-Tabletop-v0` and `--objects Objects-YCB-Basic-v0` select them
+by ID. `src/vla_isaaclab/scenario.py` then checks component capabilities and
+composes the selected modules into one scenario.
+
+Use the following command to see every currently registered ID:
+
+```bash
+./scripts/run_scenario.sh --headless --list-components
+```
+
+When adding a component, define its `component_id`, import it in its module
+package `__init__.py`, and add it to that package's `register_*()` function.
+
+## Scene preview examples
+
+The same preview command is used for all three scenes:
+
+```bash
+./scripts/run_scenario.sh --headless --enable_cameras \
+  --world <WORLD_ID> \
+  --objects <OBJECTS_ID> \
+  --task Task-ScenePreview-v0 \
+  --controller Controller-Standing-v0 \
+  --steps 240 \
+  --preview-video outputs/previews/<NAME>.mp4
+```
+
+Choose one option:
+
+| Preview | `WORLD_ID` | `OBJECTS_ID` | `NAME` |
+| --- | --- | --- | --- |
+| YCB objects | `World-Tabletop-v0` | `Objects-YCB-Basic-v0` | `ycb` |
+| Bowl and plate | `World-Tabletop-v0` | `Objects-Dinnerware-v0` | `dinnerware` |
+| Microwave | `World-MicrowaveTabletop-v0` | `Objects-Microwave-v0` | `microwave` |
+
+YCB and dinnerware share the tabletop layout and camera pose; only the Objects
+component changes. The microwave selects a different World because it needs a
+different robot distance, object placement, and camera pose.
 
 ## Reference scenario: YCB sugar box
 
