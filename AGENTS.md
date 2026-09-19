@@ -5,24 +5,29 @@ running the simulator.
 
 ## Repository and environment
 
-- Repository: `/home/vlakbnn/jiajunl4/isaac_simlab`
-- Conda environment: `jiajunl_isaac`
-- Prefix: `/home/vlakbnn/miniconda3/envs/jiajunl_isaac`
-- Isaac Sim 4.5.0.0; Isaac Lab v2.0.2 in `./IsaacLab`
+- Repository: the directory containing this `AGENTS.md`
+- Conda environment: developer-owned; activate it first or select it with
+  `ISAAC_SIMLAB_ENV`
+- Isaac Lab: shared v2.0.2 checkout at `ISAACLAB_ROOT` (defaults to
+  `/media/data-ssd/software/IsaacLab-v2.0.2`)
+- Isaac Sim 4.5.0.0
 - Python 3.10.21; PyTorch 2.5.1+cu121; LeRobot 0.4.3
 - Tested GPU: NVIDIA RTX 4090, driver 550.144.03
 
 Always begin simulator work with:
 
 ```bash
-cd /home/vlakbnn/jiajunl4/isaac_simlab
+cd <isaac_simlab-checkout>
+conda activate <developer-env>
 source scripts/activate.sh
 check_install_environment
 ```
 
-The activation script selects the exact environment, disables user-site
-packages, clears `PYTHONPATH`, accepts the Omniverse EULA, and places Kit caches
-inside the project. Do not substitute a bare `conda activate`.
+The activation script selects the configured local environment, disables
+user-site packages, verifies the pinned shared Isaac Lab checkout, accepts the
+Omniverse EULA, and places Kit caches inside the project. Each developer owns
+their Conda environment and outputs; nobody clones or modifies Isaac Lab from
+this project. Do not substitute a bare `conda activate`.
 
 Before installing anything, inspect `which python`, `which pip`, and
 `conda info --envs`. Do not use sudo, alter drivers/system CUDA, or touch other
