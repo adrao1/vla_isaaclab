@@ -6,7 +6,7 @@
   "source_mjcf": "assets/furniture_sim/microwave.xml",
   "source_sha256": "4ff97cedcf1814c71bc11adcad121ee55ee82b6f37164fba63ef35fe3befe96a",
   "generated_usd": "assets/furniture_sim/generated/microwave.usd",
-  "generated_sha256": "62a09f1e494cef7dc53aba20f8090dc43df35acc441bfb80d41d14b5024cc46f",
+  "generated_sha256": "21cb3ef3110bf7e569008383a887c98d5eebe24267da4aee846c5eb18a12fa53",
   "converter": "Isaac Sim 4.5 isaacsim.asset.importer.mjcf",
   "door_joint": "micro0joint",
   "door_joint_range_rad": [
@@ -14,5 +14,10 @@
     0.0
   ],
   "articulation_root": "/microwave/microroot",
-  "postprocess": "Removed duplicate ArticulationRootAPI markers and deactivated the empty showcase wrapper body/fixed joint emitted by the importer."
+  "relative_asset_paths": {
+    "assets/furniture_sim/generated/configuration/microwave_physics.usd": [
+      "./microwave_base.usd"
+    ]
+  },
+  "postprocess": "Removed duplicate ArticulationRootAPI markers and deactivated the empty showcase wrapper body/fixed joint emitted by the importer. Rewrote project-local USD dependencies as relative paths."
 }

@@ -1,6 +1,6 @@
-# isaac_simlab
+# vla_isaaclab
 
-`isaac_simlab` is a robotics simulation framework built on **Isaac Lab**, with
+`vla_isaaclab` is a robotics simulation framework built on **Isaac Lab**, with
 **Isaac Sim** serving as the underlying simulation runtime.
 
 It provides:
@@ -67,7 +67,7 @@ the same pinned Isaac Lab `v2.0.2` checkout:
 Each developer maintains their own:
 
 - Conda environment
-- `isaac_simlab` checkout
+- `vla_isaaclab` checkout
 - `outputs/`
 - Isaac Sim / Kit caches
 
@@ -106,8 +106,8 @@ Choose your own Conda environment name; the project does not require a shared
 environment name:
 
 ```bash
-git clone <this-repository-url> isaac_simlab
-cd isaac_simlab
+git clone <this-repository-url> vla_isaaclab
+cd vla_isaaclab
 
 conda env create --name <your-env> --file environment.yml
 conda activate <your-env>
@@ -188,21 +188,21 @@ python scripts/run_scenario.py --headless --list-components
 To select an environment explicitly instead:
 
 ```bash
-export ISAAC_SIMLAB_ENV=<your-env>
+export VLA_ISAACLAB_ENV=<your-env>
 source scripts/activate.sh
 ```
 
 ## Project layout
 
 ```text
-isaac_simlab/
+vla_isaaclab/
 ├── environment.yml              reproducible Conda base
 ├── requirements.txt             pinned Python/runtime packages
-├── pyproject.toml               installable `isaac_simlab` package
+├── pyproject.toml               installable `vla_isaaclab` package
 ├── assets/                      USD, YCB, robot, and scene assets
 ├── configs/                     Kit and recording configuration
 ├── scripts/                     run, record, replay, asset utilities
-├── src/isaac_simlab/
+├── src/vla_isaaclab/
 │   ├── worlds/                  tables, pedestals, semantic workspace frames
 │   ├── robots/                  robot definitions, joints, limits, EE frames
 │   ├── objects/                 YCB and other object-set adapters
@@ -281,12 +281,12 @@ The current deterministic reference task uses only:
 
 Implementation paths:
 
-- Object registration: `src/isaac_simlab/objects/ycb.py`
-- Task and success conditions: `src/isaac_simlab/tasks/ycb_pick_place_sugar_box.py`
-- Scripted grasp strategy: `src/isaac_simlab/experts/ycb_pick_place_sugar_box.py`
-- Differential IK controller: `src/isaac_simlab/controllers/left_arm_differential_ik.py`
-- G1 robot/joint definition: `src/isaac_simlab/robots/unitree_g1.py`
-- Normalized joint ActionTerm: `src/isaac_simlab/actions.py`
+- Object registration: `src/vla_isaaclab/objects/ycb.py`
+- Task and success conditions: `src/vla_isaaclab/tasks/ycb_pick_place_sugar_box.py`
+- Scripted grasp strategy: `src/vla_isaaclab/experts/ycb_pick_place_sugar_box.py`
+- Differential IK controller: `src/vla_isaaclab/controllers/left_arm_differential_ik.py`
+- G1 robot/joint definition: `src/vla_isaaclab/robots/unitree_g1.py`
+- Normalized joint ActionTerm: `src/vla_isaaclab/actions.py`
 - Scenario runner and recording gate: `scripts/run_scenario.py`
 
 The box starts:

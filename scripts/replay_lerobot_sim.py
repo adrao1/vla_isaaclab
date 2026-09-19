@@ -30,9 +30,9 @@ import numpy as np
 import torch
 from PIL import Image
 
-from isaac_simlab import ScenarioSelection, register_defaults
-from isaac_simlab.runtime import ScenarioEnv
-from isaac_simlab.scenario import compose_scenario
+from vla_isaaclab import ScenarioSelection, register_defaults
+from vla_isaaclab.runtime import ScenarioEnv
+from vla_isaaclab.scenario import compose_scenario
 
 
 def main() -> int:

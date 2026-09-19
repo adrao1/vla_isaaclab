@@ -68,10 +68,10 @@ from PIL import Image
 import isaacsim.core.utils.stage as stage_utils
 from isaaclab.managers import DatasetExportMode
 
-from isaac_simlab import ScenarioSelection, list_components, register_defaults
-from isaac_simlab.recording.recorder_cfg import ScenarioRecorderCfg
-from isaac_simlab.runtime import ScenarioEnv
-from isaac_simlab.scenario import compose_scenario
+from vla_isaaclab import ScenarioSelection, list_components, register_defaults
+from vla_isaaclab.recording.recorder_cfg import ScenarioRecorderCfg
+from vla_isaaclab.runtime import ScenarioEnv
+from vla_isaaclab.scenario import compose_scenario
 
 
 def safe_name(value: str) -> str:
@@ -91,7 +91,7 @@ def task_distance(env, bundle) -> float | None:
         target = torch.tensor(bundle.world.reach_target, device=env.device).unsqueeze(0)
         return torch.linalg.vector_norm(palm - target, dim=-1)[0].item()
     if bundle.selection.task == "Task-YCBPickPlaceSugarBox-v0":
-        from isaac_simlab.tasks.ycb_pick_place_sugar_box import target_pose
+        from vla_isaaclab.tasks.ycb_pick_place_sugar_box import target_pose
 
         obj = env.scene["object"]
         target = target_pose(env, bundle.world.support_height)[:, :2] + env.scene.env_origins[:, :2]
@@ -212,8 +212,8 @@ def main() -> int:
         timed_out_count = 0
         success_count = 0
         if ARGS.record_format == "lerobot":
-            from isaac_simlab.recording.frame import ScenarioFrameAdapter
-            from isaac_simlab.recording.staging import StagingHDF5Writer
+            from vla_isaaclab.recording.frame import ScenarioFrameAdapter
+            from vla_isaaclab.recording.staging import StagingHDF5Writer
 
             adapter = ScenarioFrameAdapter(env, bundle)
             task_prompt = ARGS.task_prompt or bundle.controller.behavior_prompt or bundle.task.instruction

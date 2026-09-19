@@ -13,7 +13,7 @@ import h5py
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
 
-from isaac_simlab.recording.lerobot_v3 import LeRobotV3Writer
+from vla_isaaclab.recording.lerobot_v3 import LeRobotV3Writer
 
 
 def main() -> int:

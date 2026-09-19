@@ -7,7 +7,7 @@ running the simulator.
 
 - Repository: the directory containing this `AGENTS.md`
 - Conda environment: developer-owned; activate it first or select it with
-  `ISAAC_SIMLAB_ENV`
+  `VLA_ISAACLAB_ENV`
 - Isaac Lab: shared v2.0.2 checkout at `ISAACLAB_ROOT` (defaults to
   `/media/data-ssd/software/IsaacLab-v2.0.2`)
 - Isaac Sim 4.5.0.0
@@ -17,7 +17,7 @@ running the simulator.
 Always begin simulator work with:
 
 ```bash
-cd <isaac_simlab-checkout>
+cd <vla_isaaclab-checkout>
 conda activate <developer-env>
 source scripts/activate.sh
 check_install_environment
@@ -76,16 +76,16 @@ Responsibility boundaries are strict:
 
 ## Key files
 
-- `src/isaac_simlab/contracts.py`: immutable component interfaces and targets.
-- `src/isaac_simlab/registry.py`: component registries.
-- `src/isaac_simlab/scenario.py`: compatibility validation and composition.
-- `src/isaac_simlab/runtime.py`: common environment runtime.
-- `src/isaac_simlab/actions.py`: normalized 25-joint ActionTerm and conversion.
-- `src/isaac_simlab/robots/unitree_g1.py`: fixed-base G1 definition.
-- `src/isaac_simlab/tasks/`: observations/reward/success/termination only.
-- `src/isaac_simlab/experts/`: scripted task-solving strategy only.
-- `src/isaac_simlab/controllers/`: reusable action generation.
-- `src/isaac_simlab/recording/`: HDF5 and LeRobot v3 pipelines.
+- `src/vla_isaaclab/contracts.py`: immutable component interfaces and targets.
+- `src/vla_isaaclab/registry.py`: component registries.
+- `src/vla_isaaclab/scenario.py`: compatibility validation and composition.
+- `src/vla_isaaclab/runtime.py`: common environment runtime.
+- `src/vla_isaaclab/actions.py`: normalized 25-joint ActionTerm and conversion.
+- `src/vla_isaaclab/robots/unitree_g1.py`: fixed-base G1 definition.
+- `src/vla_isaaclab/tasks/`: observations/reward/success/termination only.
+- `src/vla_isaaclab/experts/`: scripted task-solving strategy only.
+- `src/vla_isaaclab/controllers/`: reusable action generation.
+- `src/vla_isaaclab/recording/`: HDF5 and LeRobot v3 pipelines.
 - `scripts/run_scenario.py`: composition runner, not task/control logic.
 
 ## Reference compositions

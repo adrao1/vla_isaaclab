@@ -1,4 +1,4 @@
-name: isaac_simlab
+name: vla_isaaclab
 channels:
   - conda-forge
   - defaults
