@@ -1,0 +1,10 @@
+name: isaac_simlab
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Isaac Sim 4.5 and Isaac Lab v2.0.2 require Python 3.10.
+  - python=3.10
+  - pip
+  - setuptools
+  - wheel

@@ -1,7 +1,8 @@
 # 常用命令
 
 ```bash
-cd /home/vlakbnn/jiajunl4/isaac_simlab
+cd <isaac_simlab-checkout>
+conda activate <developer-env>
 source scripts/activate.sh
 check_install_environment
 ```
