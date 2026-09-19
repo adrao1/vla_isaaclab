@@ -74,6 +74,21 @@ Responsibility boundaries are strict:
   reward, success, phases, or object-specific strategy.
 - `actions.py` contains only generic ActionTerm and mapping utilities.
 
+Every selectable component has a unique `component_id`. Each component package
+imports its definitions in `__init__.py` and registers them in its
+`register_*()` function. The runner calls `register_defaults()`; CLI arguments
+such as `--world` and `--objects` are registry IDs, not file paths. Keep
+component registration and implementation together, and reject duplicate IDs.
+
+Camera responsibilities are split deliberately:
+
+- World owns camera placement (`camera_eye`, `camera_target`) because framing
+  depends on the scene layout, robot distance, and object placement.
+- Sensors own camera properties such as resolution, focal length, clipping
+  range, update rate, and output data types.
+- To reframe an existing scene, edit its World. To change camera hardware or
+  modalities across scenes, edit or add a Sensor component.
+
 ## Key files
 
 - `src/vla_isaaclab/contracts.py`: immutable component interfaces and targets.
@@ -100,6 +115,19 @@ Sensors-FixedRGBD-v0
 Task-ScenePreview-v0
 Controller-Standing-v0
 ```
+
+The three validated preview options are:
+
+```text
+YCB:        World-Tabletop-v0          + Objects-YCB-Basic-v0
+Dinnerware: World-Tabletop-v0          + Objects-Dinnerware-v0
+Microwave:  World-MicrowaveTabletop-v0 + Objects-Microwave-v0
+```
+
+YCB and dinnerware share the tabletop layout and camera pose. Microwave uses a
+separate World for its robot distance, object placement, and camera framing.
+All three use `Sensors-FixedRGBD-v0`, `Task-ScenePreview-v0`, and
+`Controller-Standing-v0`.
 
 Sugar-box manipulation (the table contains only this object):
 
@@ -130,8 +158,13 @@ reset -> move_to_turn_point -> orient_hand -> move_pregrasp -> close_gripper -> 
 
 ## Current validated state (2026-09-19)
 
-- Package/imports, registries, and both reference compositions load.
-- ScenePreview rendered 240 steps with stable G1/YCB state and working camera.
+- Package/imports, registries, and the reference compositions load.
+- YCB, dinnerware, and microwave ScenePreview compositions each rendered 240
+  steps with stable finite state and a working camera. Their preview videos are
+  640x480, 240 frames, and 8 seconds.
+- Dinnerware texture dependencies and microwave USD sublayers/references use
+  portable relative paths. Generated assets and manifests contain no developer
+  home or old-project absolute paths.
 - HDF5 and LeRobot ScenePreview smoke episodes were inspected and replayed.
 - The tabletop contains only `004_sugar_box` for this composition. The fixed G1
   base is at `(0.0, -0.64, 0.74)`. The torso starts centered; the left arm is
@@ -165,10 +198,15 @@ termination term fires, and never save a failed episode as a successful demo.
 
 ```bash
 ./scripts/run_scenario.sh --headless --list-components
-./scripts/run_scenario.sh --headless --objects Objects-YCB-Basic-v0 \
-  --task Task-ScenePreview-v0 --controller Controller-Standing-v0 --steps 240
+./scripts/run_scenario.sh --headless --enable_cameras \
+  --world <WORLD_ID> --objects <OBJECTS_ID> \
+  --task Task-ScenePreview-v0 --controller Controller-Standing-v0 \
+  --steps 240 --preview-video outputs/previews/<NAME>.mp4
 ```
 
 When adding functionality: add a Task for a new problem, add an Expert only for
 a scripted solution, reuse an existing Controller when its motion interface
 fits, and add a new Controller only for a genuinely new control modality.
+The active reusable controllers are `Controller-Standing-v0` and
+`Controller-LeftArmDifferentialIK-v0`; `bounded_ik.py` is the latter's tested
+joint-bounded DLS helper, not a separately registered Controller.
