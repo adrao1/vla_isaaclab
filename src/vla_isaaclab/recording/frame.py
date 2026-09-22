@@ -7,6 +7,9 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
+from vla_isaaclab.envs.common import LEFT_END_EFFECTOR, RIGHT_END_EFFECTOR
+from vla_isaaclab.envs.common.managers import ACTION_TERM_NAME
+
 
 POSE_NAMES = ("position.x", "position.y", "position.z", "quaternion.w", "quaternion.x", "quaternion.y", "quaternion.z")
 
@@ -20,23 +23,22 @@ class FrameSnapshot:
     control_phase: np.ndarray
 
 
-class ScenarioFrameAdapter:
+class EnvironmentFrameAdapter:
     """Capture one environment using stable, robot-facing data semantics."""
 
-    def __init__(self, env, bundle):
+    def __init__(self, env):
         if env.num_envs != 1:
             raise ValueError("LeRobot recording currently supports exactly one environment")
         self.env = env
-        self.bundle = bundle
         self.robot = env.scene["robot"]
-        self.action_term = env.action_manager.get_term("upper_body")
-        self.joint_names = list(self.action_term.joint_names)
+        self.action_term = env.action_manager.get_term(ACTION_TERM_NAME)
+        self.joint_names = list(self.action_term._joint_names)
         self.joint_ids, _ = self.robot.find_joints(self.joint_names, preserve_order=True)
 
         self.body_entries = []
         for role, body_name in (
-            ("left_end_effector", bundle.robot.left_end_effector),
-            ("right_end_effector", bundle.robot.right_end_effector),
+            ("left_end_effector", LEFT_END_EFFECTOR),
+            ("right_end_effector", RIGHT_END_EFFECTOR),
         ):
             body_ids, _ = self.robot.find_bodies([body_name], preserve_order=True)
             self.body_entries.append((role, body_ids[0]))
@@ -118,7 +120,7 @@ class ScenarioFrameAdapter:
             environment_state=np.concatenate(state_parts).astype(np.float32, copy=False),
             rgb=self._numpy(rgb, dtype=np.uint8),
             control_phase=np.asarray(
-                [int(getattr(self.env, "expert_phase", torch.zeros(1, device=self.env.device))[0].item())],
+                [int(getattr(self.env, "policy_phase", torch.zeros(1, device=self.env.device))[0].item())],
                 dtype=np.int64,
             ),
         )
@@ -129,7 +131,7 @@ class ScenarioFrameAdapter:
         return {
             "observation.state": snapshot.joint_position,
             "observation.velocity": snapshot.joint_velocity,
-            "action": self._numpy(self.action_term.joint_position_targets[0]),
+            "action": self._numpy(self.action_term.processed_actions[0]),
             "sim.action.normalized": self._numpy(self.action_term.raw_actions[0]),
             "observation.environment_state": snapshot.environment_state,
             "next.reward": np.asarray([reward[0].item()], dtype=np.float32),
