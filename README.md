@@ -1,8 +1,8 @@
 # vla_isaaclab
 
-`vla_isaaclab` provides registered Isaac Lab environments for VLA simulation,
-scripted data generation, and future real-to-sim / sim-to-real projects. Isaac
-Sim is the runtime; Isaac Lab supplies the environment and manager framework.
+`vla_isaaclab` is a robotics simulation framework for developing, running,
+validating, and recording manager-based environments. It uses Isaac Sim as the
+simulation runtime and Isaac Lab as the environment framework.
 
 ## Environment model
 
@@ -15,14 +15,13 @@ shared
 per developer
 ├── own Conda environment
 ├── own vla_isaaclab checkout
-├── own real2sim / sim2real checkouts
 └── own outputs and Kit caches
 ```
 
 All developers use the pinned Isaac Lab `v2.0.2` checkout. They do not clone or
-modify Isaac Lab inside this repository. Each adjacent project is installed in
-the developer's own Conda environment and can import or launch these registered
-environments without sharing project source trees or outputs.
+modify Isaac Lab inside this repository. Each developer installs this project
+in their own Conda environment and keeps an independent checkout, generated
+outputs, and local caches.
 
 | Component | Version |
 | --- | --- |
@@ -98,46 +97,6 @@ overridable.
 
 ## Architecture
 
-The selectable unit is one complete Gym environment, not independently
-registered World/Object/Task/Controller components:
-
-```text
-Gym environment ID
-└── concrete EnvCfg
-    ├── InteractiveSceneCfg     G1, table, object(s), camera
-    ├── ActionManager          normalized 25-D joint action
-    ├── CommandManager         task goal, when applicable
-    ├── ObservationManager     policy/task observations
-    ├── EventManager           reset and uncontrolled-joint targets
-    ├── RewardManager          task rewards
-    ├── TerminationManager     success/failure/time-out
-    └── RecorderManager        raw HDF5 state/action/camera recording
-```
-
-The scripted sugar-box path is:
-
-```text
-registered EnvCfg + manager state
-        ↓
-scripted policy (task phases + bounded IK + 3-finger targets)
-        ↓
-physical joint targets
-        ↓  q -> 2 * (q - lower) / (upper - lower) - 1
-normalized 25-D action
-        ↓
-Isaac Lab JointPositionToLimitsActionCfg
-        ↓
-G1 joint position targets
-```
-
-The environment interface is normalized joint action, not Cartesian pose. The
-custom ActionTerm and Controller registry were removed. Isaac Lab's
-`JointPositionToLimitsActionCfg` performs the action mapping directly. The only
-custom control algorithm retained is the bounded damped-least-squares IK used
-inside the scripted sugar-box policy.
-
-## Project layout
-
 ```text
 vla_isaaclab/
 ├── assets/                          local robot, YCB, dinnerware, microwave assets
@@ -165,16 +124,34 @@ vla_isaaclab/
 │   ├── policies/
 │   │   ├── standing.py             normalized default-pose policy
 │   │   ├── ycb_sugar_box*.py       scripted phases and action generation
-│   │   ├── bounded_ik.py           retained custom IK helper
+│   │   ├── bounded_ik.py           bounded DLS IK helper
 │   │   └── joint_limits.py         inverse of the built-in action mapping
 │   └── recording/                   RecorderManager HDF5 and LeRobot v3 pipeline
 ├── tests/                           simulator-free unit tests
 └── outputs/                         local caches/videos/datasets; ignored by Git
 ```
 
-Robot and reusable table/camera helpers live under `envs/common`. Object assets
-and task-specific scene configuration live in the concrete environment config;
-there are no separate top-level robot/object/world/sensor registries.
+Reusable G1, table, lighting, camera, action, observation, and reset
+configuration lives under `envs/common`. Each concrete environment owns its
+scene assets and task-specific configuration.
+
+Each simulation setup is registered as a complete Gym environment:
+
+```text
+Gym environment ID
+└── concrete EnvCfg
+    ├── InteractiveSceneCfg     robot, scene assets, camera
+    ├── ActionManager          normalized 25-D joint action
+    ├── CommandManager         task goal, when applicable
+    ├── ObservationManager     policy/task observations
+    ├── EventManager           reset and joint targets
+    ├── RewardManager          task rewards
+    ├── TerminationManager     success/failure/time-out
+    └── RecorderManager        HDF5 state/action/camera recording
+```
+
+The environment interface is a normalized 25-D joint action. Isaac Lab's
+`JointPositionToLimitsActionCfg` maps it to G1 joint-position targets.
 
 ## Registration and extension
 
@@ -188,8 +165,8 @@ Importing `vla_isaaclab` registers these IDs with Gymnasium:
 To add a task, create a complete EnvCfg under `src/vla_isaaclab/envs/`, keep its
 MDP terms beside it, and register the EnvCfg in that environment package's
 `__init__.py`. Add a scripted policy only when deterministic demonstrations are
-needed. Do not add another component registry or a custom ActionTerm for a
-mapping already provided by Isaac Lab.
+needed. Use Isaac Lab manager terms and action configurations for environment
+behavior and interfaces.
 
 Camera placement belongs to the concrete scene's EnvCfg because framing depends
 on the object layout. Shared camera intrinsics/modalities belong in the common
@@ -224,6 +201,23 @@ The table contains only `004_sugar_box`. Relevant code is:
 - scripted phases: `src/vla_isaaclab/policies/ycb_sugar_box_strategy.py`
 - IK and action generation: `src/vla_isaaclab/policies/ycb_sugar_box.py`
 - bounded IK helper: `src/vla_isaaclab/policies/bounded_ik.py`
+
+The scripted policy and environment interact through the standard action
+interface:
+
+```text
+registered EnvCfg + manager state
+        ↓
+scripted policy (task phases + bounded IK + three-finger targets)
+        ↓
+physical joint targets
+        ↓  q -> 2 * (q - lower) / (upper - lower) - 1
+normalized 25-D action
+        ↓
+Isaac Lab JointPositionToLimitsActionCfg
+        ↓
+G1 joint-position targets
+```
 
 The box starts upright at XY `(0.010509, -0.290489)` m with world-Z yaw
 `35.81856°`. The three-finger side grasp lifts it 8 cm, moves it 2 cm toward
