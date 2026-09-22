@@ -48,7 +48,7 @@ def main() -> int:
             episode_path,
             actions=actions.astype(np.float32),
             seed=np.asarray(int(seeds.reshape(-1)[0]), dtype=np.int64),
-            scenario=np.asarray(json.dumps(manifest["scenario"])),
+            environment_id=np.asarray(manifest["environment_id"]),
             dataset=np.asarray(str(root)),
             episode=np.asarray(args.episode, dtype=np.int64),
         )
