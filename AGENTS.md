@@ -42,11 +42,14 @@ Gym ID -> EnvCfg -> Scene + Isaac Lab Managers -> normalized action -> robot
 - `envs/<task>/env_cfg.py`: concrete robot, object, camera, action and managers.
 - `envs/<task>/mdp/`: command, observation, reward, event and termination terms.
 - `policies/`: optional scripted strategy and action generation.
-- `recording/`: RecorderManager HDF5 and LeRobot v3 export.
+- `recording/`: HDF5 staging and contract-aligned LeRobot v3/v2.1 export; v3 is default.
 
-Use Isaac Lab `JointPositionToLimitsActionCfg` for the 25-D normalized action.
+Use Isaac Lab `JointPositionToLimitsActionCfg` for the 43-D normalized action.
 Its mapping is `-1=soft lower limit`, `0=midpoint`, `+1=soft upper limit`.
 Policies that calculate physical joint targets must invert that exact mapping.
+The action term follows the USD's internal joint order because Isaac Lab v2.0.2
+does not expose `preserve_order` on this action config. Dataset recording must
+explicitly remap state and processed targets into `g1_29body_dex3_43d_v1` order.
 The only retained custom control algorithm is bounded DLS IK inside the scripted
 sugar-box policy.
 

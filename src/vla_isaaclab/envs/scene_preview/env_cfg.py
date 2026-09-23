@@ -18,6 +18,8 @@ from ..common import (
     PreviewTerminationsCfg,
     VLAEnvCfg,
     camera_cfg,
+    g1_head_camera_cfg,
+    g1_left_wrist_camera_cfg,
     ground_cfg,
     light_cfgs,
     make_g1_cfg,
@@ -92,7 +94,7 @@ def _common_scene_assets(camera_eye, camera_target, robot_position):
     }
 
 
-_TABLETOP = _common_scene_assets(TABLETOP_CAMERA_EYE, TABLETOP_CAMERA_TARGET, (0.0, -0.64, 0.74))
+_TABLETOP = _common_scene_assets(TABLETOP_CAMERA_EYE, TABLETOP_CAMERA_TARGET, (0.0, -0.64, 0.80))
 
 
 @configclass
@@ -107,6 +109,8 @@ class YCBSceneCfg(InteractiveSceneCfg):
     support_leg_3 = _TABLETOP["support_leg_3"]
     robot = _TABLETOP["robot"]
     camera = _TABLETOP["camera"]
+    cam_left_high = g1_head_camera_cfg()
+    cam_left_wrist = g1_left_wrist_camera_cfg()
 
     object = _ycb_cfg("003_cracker_box", (-0.18, -0.28, 0.70), 0.107)
     object.prim_path = "{ENV_REGEX_NS}/Object"
@@ -135,6 +139,8 @@ class DinnerwareSceneCfg(InteractiveSceneCfg):
     support_leg_3 = _TABLETOP["support_leg_3"].copy()
     robot = _TABLETOP["robot"].copy()
     camera = _TABLETOP["camera"].copy()
+    cam_left_high = g1_head_camera_cfg()
+    cam_left_wrist = g1_left_wrist_camera_cfg()
 
     object = _dinnerware_cfg(DINNERWARE_ROOT / "024_bowl/024_bowl_physics.usd", (-0.18, -0.28, 0.70))
     object.prim_path = "{ENV_REGEX_NS}/Object"
@@ -190,6 +196,8 @@ class MicrowaveSceneCfg(InteractiveSceneCfg):
     support_leg_3 = _MICROWAVE["support_leg_3"]
     robot = _MICROWAVE["robot"]
     camera = _MICROWAVE["camera"]
+    cam_left_high = g1_head_camera_cfg()
+    cam_left_wrist = g1_left_wrist_camera_cfg()
     microwave = _microwave_cfg()
 
 

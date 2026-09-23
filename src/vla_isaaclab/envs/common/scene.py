@@ -10,6 +10,22 @@ from isaaclab.sensors import CameraCfg
 
 
 SUPPORT_HEIGHT = 0.62
+G1_HEAD_CAMERA_POSITION = (0.075, 0.0, 0.025)
+G1_HEAD_CAMERA_PITCH_RAD = math.radians(32.0)
+G1_HEAD_CAMERA_ORIENTATION_WXYZ = (
+    math.cos(G1_HEAD_CAMERA_PITCH_RAD / 2.0),
+    0.0,
+    math.sin(G1_HEAD_CAMERA_PITCH_RAD / 2.0),
+    0.0,
+)
+G1_LEFT_WRIST_CAMERA_POSITION = (-0.015, -0.040, 0.045)
+G1_LEFT_WRIST_CAMERA_PITCH_RAD = math.radians(24.0)
+G1_LEFT_WRIST_CAMERA_ORIENTATION_WXYZ = (
+    math.cos(G1_LEFT_WRIST_CAMERA_PITCH_RAD / 2.0),
+    0.0,
+    math.sin(G1_LEFT_WRIST_CAMERA_PITCH_RAD / 2.0),
+    0.0,
+)
 
 
 def _static_box(size: tuple[float, float, float]) -> sim_utils.CuboidCfg:
@@ -169,4 +185,22 @@ def robot_rgb_camera_cfg(
             horizontal_aperture=20.955,
             clipping_range=(0.03, 5.0),
         ),
+    )
+
+
+def g1_head_camera_cfg() -> CameraCfg:
+    return robot_rgb_camera_cfg(
+        "head_link",
+        G1_HEAD_CAMERA_POSITION,
+        G1_HEAD_CAMERA_ORIENTATION_WXYZ,
+        focal_length=14.0,
+    )
+
+
+def g1_left_wrist_camera_cfg() -> CameraCfg:
+    return robot_rgb_camera_cfg(
+        "left_hand_palm_link",
+        G1_LEFT_WRIST_CAMERA_POSITION,
+        G1_LEFT_WRIST_CAMERA_ORIENTATION_WXYZ,
+        focal_length=12.0,
     )
