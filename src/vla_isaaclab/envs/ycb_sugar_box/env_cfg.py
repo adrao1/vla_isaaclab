@@ -24,6 +24,7 @@ from ..common import (
     ground_cfg,
     light_cfgs,
     make_g1_cfg,
+    robot_rgb_camera_cfg,
     table_cfgs,
 )
 from . import mdp
@@ -33,6 +34,25 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 SUGAR_BOX_USD = PROJECT_ROOT / "assets/YCB/Axis_Aligned_Physics/004_sugar_box.usd"
 CAMERA_EYE = (0.35, 1.90, 1.85)
 CAMERA_TARGET = (-0.15, -0.30, 0.72)
+# Camera poses are expressed in their parent-link frames. In the G1 asset,
+# both the head and left palm face +X. The left palm's robot-facing inner side
+# is -Y. Positive rotation about +Y pitches the +X optical axis downward.
+HEAD_CAMERA_POSITION = (0.075, 0.0, 0.025)
+HEAD_CAMERA_PITCH_RAD = math.radians(32.0)
+HEAD_CAMERA_ORIENTATION_WXYZ = (
+    math.cos(HEAD_CAMERA_PITCH_RAD / 2.0),
+    0.0,
+    math.sin(HEAD_CAMERA_PITCH_RAD / 2.0),
+    0.0,
+)
+LEFT_WRIST_CAMERA_POSITION = (-0.015, -0.040, 0.045)
+LEFT_WRIST_CAMERA_PITCH_RAD = math.radians(24.0)
+LEFT_WRIST_CAMERA_ORIENTATION_WXYZ = (
+    math.cos(LEFT_WRIST_CAMERA_PITCH_RAD / 2.0),
+    0.0,
+    math.sin(LEFT_WRIST_CAMERA_PITCH_RAD / 2.0),
+    0.0,
+)
 SUGAR_BOX_HALF_HEIGHT_M = 0.088
 SUGAR_BOX_ORIENTATION_WXYZ = (
     0.6728436464587195,
@@ -79,7 +99,14 @@ class YCBSugarBoxSceneCfg(InteractiveSceneCfg):
     support_leg_2 = _LEG_2
     support_leg_3 = _LEG_3
     robot = make_g1_cfg((0.0, -0.64, 0.74))
-    camera = camera_cfg(CAMERA_EYE, CAMERA_TARGET)
+    cam_side = camera_cfg(CAMERA_EYE, CAMERA_TARGET)
+    cam_left_high = robot_rgb_camera_cfg(
+        "head_link", HEAD_CAMERA_POSITION, HEAD_CAMERA_ORIENTATION_WXYZ, focal_length=14.0
+    )
+    cam_left_wrist = robot_rgb_camera_cfg(
+        "left_palm_link", LEFT_WRIST_CAMERA_POSITION, LEFT_WRIST_CAMERA_ORIENTATION_WXYZ,
+        focal_length=12.0,
+    )
     object = _sugar_box_cfg()
     target_marker = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/SugarBoxTarget",

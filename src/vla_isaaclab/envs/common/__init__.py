@@ -14,7 +14,7 @@ from .g1 import (
 )
 from .base import VLAEnvCfg
 from .managers import EventsCfg, JointLimitActionsCfg, PreviewObservationsCfg, PreviewRewardsCfg, PreviewTerminationsCfg
-from .scene import SUPPORT_HEIGHT, camera_cfg, ground_cfg, light_cfgs, table_cfgs
+from .scene import SUPPORT_HEIGHT, camera_cfg, ground_cfg, light_cfgs, robot_rgb_camera_cfg, table_cfgs
 
 __all__ = [
     "ACTION_JOINT_NAMES",
@@ -37,5 +37,6 @@ __all__ = [
     "ground_cfg",
     "light_cfgs",
     "make_g1_cfg",
+    "robot_rgb_camera_cfg",
     "table_cfgs",
 ]

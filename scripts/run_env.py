@@ -81,6 +81,13 @@ def task_succeeded(env) -> bool:
     return bool(env.termination_manager.get_term("success")[0].item())
 
 
+def primary_camera(env):
+    for name in ("cam_left_high", "camera"):
+        if name in env.scene.sensors:
+            return env.scene.sensors[name]
+    raise RuntimeError("No head or scene camera is configured")
+
+
 def validate(env, policy, steps, success_count, dataset_path=None):
     robot = env.scene["robot"]
     lower_ids, _ = robot.find_joints(list(LOWER_BODY_JOINT_NAMES), preserve_order=True)
@@ -168,7 +175,9 @@ def main() -> int:
     episode_steps = finite_steps if ARGS.record_format == "hdf5" else finite_steps + 1
     cfg.episode_length_s = episode_steps * cfg.decimation * cfg.sim.dt
     if ARGS.physics_only:
-        cfg.scene.camera = None
+        for camera_name in ("camera", "cam_side", "cam_left_high", "cam_left_wrist"):
+            if hasattr(cfg.scene, camera_name):
+                setattr(cfg.scene, camera_name, None)
     dataset_path = None
     if ARGS.record_format == "hdf5":
         from vla_isaaclab.recording.recorder_cfg import VLARecorderCfg
@@ -221,6 +230,7 @@ def main() -> int:
                     "environment_id": ARGS.task,
                     "rates_hz": {"physics": 120, "control": 30, "camera": 30},
                     "joint_names": adapter.joint_names,
+                    "camera_keys": adapter.camera_feature_keys,
                     "environment_state_names": adapter.environment_state_names,
                     "task_prompt": task_prompt,
                     "units": {"joint_position": "rad", "joint_velocity": "rad/s", "position": "m"},
@@ -282,7 +292,7 @@ def main() -> int:
                     if video_stream is not None:
                         import av
 
-                        rgb = env.scene["camera"].data.output["rgb"][0, ..., :3].detach().cpu().numpy()
+                        rgb = primary_camera(env).data.output["rgb"][0, ..., :3].detach().cpu().numpy()
                         frame = av.VideoFrame.from_ndarray(rgb.astype(np.uint8), format="rgb24")
                         for packet in video_stream.encode(frame):
                             video_container.mux(packet)

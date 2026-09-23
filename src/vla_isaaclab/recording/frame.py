@@ -19,7 +19,7 @@ class FrameSnapshot:
     joint_position: np.ndarray
     joint_velocity: np.ndarray
     environment_state: np.ndarray
-    rgb: np.ndarray
+    images: dict[str, np.ndarray]
     control_phase: np.ndarray
 
 
@@ -57,13 +57,33 @@ class EnvironmentFrameAdapter:
                 )
             )
 
-        rgb = env.scene["camera"].data.output["rgb"][0, ..., :3]
-        self.image_shape = tuple(int(value) for value in rgb.shape)
+        camera_features = (
+            ("cam_side", "observation.images.cam_side"),
+            ("cam_left_high", "observation.images.cam_left_high"),
+            ("cam_left_wrist", "observation.images.cam_left_wrist"),
+        )
+        self.cameras = [
+            (sensor_name, feature_name, env.scene.sensors[sensor_name])
+            for sensor_name, feature_name in camera_features
+            if sensor_name in env.scene.sensors
+        ]
+        if not self.cameras and "camera" in env.scene.sensors:
+            self.cameras = [("camera", "observation.images.front", env.scene.sensors["camera"])]
+        if not self.cameras:
+            raise RuntimeError("LeRobot recording requires at least one RGB camera")
+        self.image_shapes = {
+            feature_name: tuple(int(value) for value in camera.data.output["rgb"][0, ..., :3].shape)
+            for _, feature_name, camera in self.cameras
+        }
+
+    @property
+    def camera_feature_keys(self) -> list[str]:
+        return [feature_name for _, feature_name, _ in self.cameras]
 
     @property
     def features(self) -> dict:
         state_shape = (len(self.joint_names),)
-        return {
+        features = {
             "observation.state": {"dtype": "float32", "shape": state_shape, "names": self.joint_names},
             "observation.velocity": {"dtype": "float32", "shape": state_shape, "names": self.joint_names},
             "action": {"dtype": "float32", "shape": state_shape, "names": self.joint_names},
@@ -78,12 +98,14 @@ class EnvironmentFrameAdapter:
             "next.success": {"dtype": "bool", "shape": (1,), "names": None},
             "sim.seed": {"dtype": "int64", "shape": (1,), "names": None},
             "control.phase": {"dtype": "int64", "shape": (1,), "names": ["phase_index"]},
-            "observation.images.front": {
-                "dtype": "video",
-                "shape": (3, self.image_shape[0], self.image_shape[1]),
-                "names": ["channels", "height", "width"],
-            },
         }
+        for feature_name, shape in self.image_shapes.items():
+            features[feature_name] = {
+                "dtype": "video",
+                "shape": (3, shape[0], shape[1]),
+                "names": ["channels", "height", "width"],
+            }
+        return features
 
     @staticmethod
     def _numpy(tensor, dtype=np.float32):
@@ -113,12 +135,14 @@ class EnvironmentFrameAdapter:
                 )
             )
 
-        rgb = self.env.scene["camera"].data.output["rgb"][0, ..., :3]
         return FrameSnapshot(
             joint_position=self._numpy(self.robot.data.joint_pos[0, self.joint_ids]),
             joint_velocity=self._numpy(self.robot.data.joint_vel[0, self.joint_ids]),
             environment_state=np.concatenate(state_parts).astype(np.float32, copy=False),
-            rgb=self._numpy(rgb, dtype=np.uint8),
+            images={
+                feature_name: self._numpy(camera.data.output["rgb"][0, ..., :3], dtype=np.uint8)
+                for _, feature_name, camera in self.cameras
+            },
             control_phase=np.asarray(
                 [int(getattr(self.env, "policy_phase", torch.zeros(1, device=self.env.device))[0].item())],
                 dtype=np.int64,
@@ -128,7 +152,7 @@ class EnvironmentFrameAdapter:
     def complete_frame(self, snapshot, reward, terminated, timed_out, horizon, task, seed, success=None) -> dict:
         success = bool(terminated[0].item()) if success is None else bool(success)
         done = success or bool(timed_out[0].item()) or horizon
-        return {
+        frame = {
             "observation.state": snapshot.joint_position,
             "observation.velocity": snapshot.joint_velocity,
             "action": self._numpy(self.action_term.processed_actions[0]),
@@ -139,6 +163,7 @@ class EnvironmentFrameAdapter:
             "next.success": np.asarray([success], dtype=np.bool_),
             "sim.seed": np.asarray([seed], dtype=np.int64),
             "control.phase": snapshot.control_phase,
-            "observation.images.front": snapshot.rgb,
             "task": task,
         }
+        frame.update(snapshot.images)
+        return frame
