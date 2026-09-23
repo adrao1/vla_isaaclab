@@ -33,6 +33,8 @@ from PIL import Image
 import gymnasium as gym
 import vla_isaaclab  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+from vla_isaaclab.envs.common import ACTION_JOINT_NAMES
+from vla_isaaclab.envs.common.managers import ACTION_TERM_NAME
 
 
 def main() -> int:
@@ -49,8 +51,14 @@ def main() -> int:
     env = gym.make(environment_id, cfg=cfg).unwrapped
     try:
         env.reset(seed=seed)
+        action_term_names = list(env.action_manager.get_term(ACTION_TERM_NAME)._joint_names)
+        contract_to_term = [ACTION_JOINT_NAMES.index(name) for name in action_term_names]
+        actions = actions[:, contract_to_term]
+        # Row n stores the observation before action n is advanced through the
+        # simulator. Apply rows [0, N-2] to reproduce observation row N-1.
+        replay_actions = actions[:-1]
         with torch.inference_mode():
-            for action in actions:
+            for action in replay_actions:
                 env.step(torch.as_tensor(action, device=env.device).unsqueeze(0))
 
         ARGS.output.parent.mkdir(parents=True, exist_ok=True)
@@ -62,7 +70,9 @@ def main() -> int:
             "episode": episode_index,
             "environment_id": environment_id,
             "seed": seed,
-            "steps_replayed": len(actions),
+            "actions_available": len(actions),
+            "actions_applied": len(replay_actions),
+            "observation_frame_reproduced": len(actions) - 1,
             "output": str(ARGS.output.resolve()),
         }
         ARGS.output.with_suffix(".json").write_text(json.dumps(report, indent=2) + "\n")

@@ -29,7 +29,7 @@ outputs, and local caches.
 | Isaac Sim | 4.5.0.0 |
 | Isaac Lab | v2.0.2 |
 | PyTorch | 2.5.1+cu121 |
-| LeRobot | 0.4.3 / Dataset v3 |
+| LeRobot dataset | v3 (default), v2.1 (optional) |
 
 ## Installation
 
@@ -104,7 +104,7 @@ vla_isaaclab/
 ├── scripts/
 │   ├── activate.sh                 environment verification and local caches
 │   ├── run_env.py/.sh              generic Gym environment runner
-│   ├── record_lerobot.sh            LeRobot v3 data generation
+│   ├── record_lerobot.sh            LeRobot v3/v2.1 data generation
 │   ├── replay_lerobot.py/.sh        normalized-action replay
 │   └── prepare_*.py/.sh             asset preparation utilities
 ├── src/vla_isaaclab/
@@ -126,7 +126,7 @@ vla_isaaclab/
 │   │   ├── ycb_sugar_box*.py       scripted phases and action generation
 │   │   ├── bounded_ik.py           bounded DLS IK helper
 │   │   └── joint_limits.py         inverse of the built-in action mapping
-│   └── recording/                   RecorderManager HDF5 and LeRobot v3 pipeline
+│   └── recording/                   HDF5 staging and LeRobot v3/v2.1 pipeline
 ├── tests/                           simulator-free unit tests
 └── outputs/                         local caches/videos/datasets; ignored by Git
 ```
@@ -141,7 +141,7 @@ Each simulation setup is registered as a complete Gym environment:
 Gym environment ID
 └── concrete EnvCfg
     ├── InteractiveSceneCfg     robot, scene assets, camera
-    ├── ActionManager          normalized 25-D joint action
+    ├── ActionManager          normalized 43-D joint action
     ├── CommandManager         task goal, when applicable
     ├── ObservationManager     policy/task observations
     ├── EventManager           reset and joint targets
@@ -150,7 +150,7 @@ Gym environment ID
     └── RecorderManager        HDF5 state/action/camera recording
 ```
 
-The environment interface is a normalized 25-D joint action. Isaac Lab's
+The environment interface is a normalized 43-D joint action. Isaac Lab's
 `JointPositionToLimitsActionCfg` maps it to G1 joint-position targets.
 
 ## Registration and extension
@@ -212,7 +212,7 @@ scripted policy (task phases + bounded IK + three-finger targets)
         ↓
 physical joint targets
         ↓  q -> 2 * (q - lower) / (upper - lower) - 1
-normalized 25-D action
+normalized 43-D action
         ↓
 Isaac Lab JointPositionToLimitsActionCfg
         ↓
@@ -237,16 +237,37 @@ a successful demonstration.
 
 ## Recording
 
-Generate a LeRobot v3 dataset directly; no user-run conversion step is needed:
+Generate a contract-aligned LeRobot v3 dataset directly; no user-run conversion step is needed:
 
 ```bash
 ./scripts/record_lerobot.sh --dataset-name sugar_box_demo
 ```
 
-The dataset contains physical joint state/targets, normalized simulator action,
-environment state, phase, reward/done/success, seed, and RGB. The writer stages
-an episode atomically, rejects unsuccessful sugar-box episodes, then converts
+LeRobot v3 is the default. Select the v2.1 layout explicitly when required:
+
+```bash
+./scripts/record_lerobot.sh --dataset-name sugar_box_demo_v21 \
+  --lerobot-version 2.1
+```
+
+The dataset contains 43-D measured joint state and processed absolute targets,
+normalized simulator action, environment state, source timestamps, phase,
+reward/done/success, seed, and RGB. The writer retains an HDF5 source recording,
+preserves unsuccessful episodes with `success: false`, and atomically converts
 to `outputs/lerobot/<dataset-name>/`.
+
+By default, only successful episodes are exported for imitation training. To
+materialize failed episodes for source/contract review, add
+`--include-failed-episodes`; the resulting `collection.json` marks that export
+as training-ineligible. The retained HDF5 source always keeps the true outcome.
+
+Validate the result (the flag records the currently approved right-wrist-camera
+exception):
+
+```bash
+python scripts/inspect_lerobot.py outputs/lerobot/sugar_box_demo \
+  --allow-missing-right-wrist
+```
 
 Replay normalized actions with:
 

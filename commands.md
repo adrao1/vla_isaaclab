@@ -1,4 +1,4 @@
-# 常用命令
+# Common Commands
 
 ```bash
 cd <vla_isaaclab-checkout>
@@ -7,13 +7,13 @@ source scripts/activate.sh
 check_install_environment
 ```
 
-查看注册环境：
+List registered environments:
 
 ```bash
 ./scripts/run_env.sh --headless --physics-only --list-tasks
 ```
 
-预览 G1、白桌、四个 YCB 物体和 RGB-D 相机：
+Preview G1, the white table, four YCB objects, and the RGB-D cameras:
 
 ```bash
 ./scripts/run_env.sh --headless \
@@ -22,23 +22,27 @@ check_install_environment
   --preview-video outputs/previews/vla_isaaclab_scene_preview.mp4
 ```
 
-HDF5 录制与检查：
+Record and inspect an HDF5 dataset:
 
 ```bash
 ./scripts/record_env.sh --dataset-name environment_smoke
 python scripts/inspect_dataset.py outputs/datasets/environment_smoke.hdf5
 ```
 
-Sugar-box 成功演示录制为 LeRobot v3 数据集（1 个 episode，最多 1200 步）：
+Record a successful sugar-box demonstration as a LeRobot v3 dataset
+(one episode, up to 1,200 steps):
 
 ```bash
 ./scripts/record_lerobot.sh \
   --dataset-name sugar_box_demo \
+  --lerobot-version 3 \
   --episodes 1 \
   --steps 1200
 ```
 
-数据保存在 `outputs/lerobot/sugar_box_demo/`；检查和回放：
+`--lerobot-version` accepts `3` or `2.1` and defaults to `3`.
+
+The dataset is written to `outputs/lerobot/sugar_box_demo/`. Inspect and replay it with:
 
 ```bash
 python scripts/inspect_lerobot.py outputs/lerobot/sugar_box_demo

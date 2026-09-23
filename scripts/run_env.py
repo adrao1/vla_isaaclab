@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
+import os
 import subprocess
 import sys
 import traceback
@@ -24,9 +26,17 @@ def parse_args():
     parser.add_argument("--steps", type=int, default=300, help="Control steps; 0 keeps a GUI run open.")
     parser.add_argument("--preview-video", type=Path)
     parser.add_argument("--record-format", choices=("none", "hdf5", "lerobot"), default="none")
+    parser.add_argument(
+        "--lerobot-version", choices=("3", "2.1"), default="3",
+        help="LeRobot output format used with --record-format lerobot (default: 3).",
+    )
     parser.add_argument("--episodes", type=int, default=1)
     parser.add_argument("--dataset-name", default="vla_demo")
     parser.add_argument("--task-prompt")
+    parser.add_argument(
+        "--include-failed-episodes", action="store_true",
+        help="Export failed episodes for contract/source review instead of imitation training.",
+    )
     parser.add_argument("--list-tasks", action="store_true")
     parser.add_argument("--physics-only", action="store_true")
     AppLauncher.add_app_launcher_args(parser)
@@ -81,11 +91,27 @@ def task_succeeded(env) -> bool:
     return bool(env.termination_manager.get_term("success")[0].item())
 
 
+def project_revision() -> dict:
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    dirty = bool(
+        subprocess.run(
+            ["git", "status", "--porcelain"], cwd=PROJECT_ROOT, check=True,
+            capture_output=True, text=True,
+        ).stdout.strip()
+    )
+    return {"git_commit": commit, "working_tree_dirty": dirty}
+
+
 def primary_camera(env):
-    for name in ("cam_left_high", "camera"):
+    # Preview videos should show the full task from the external scene camera.
+    # Robot-mounted cameras remain available to the dataset recording adapter.
+    for name in ("cam_side", "camera", "cam_left_high"):
         if name in env.scene.sensors:
             return env.scene.sensors[name]
-    raise RuntimeError("No head or scene camera is configured")
+    raise RuntimeError("No scene or head camera is configured")
 
 
 def validate(env, policy, steps, success_count, dataset_path=None):
@@ -94,6 +120,9 @@ def validate(env, policy, steps, success_count, dataset_path=None):
     lower_error = torch.max(
         torch.abs(robot.data.joint_pos[:, lower_ids] - robot.data.default_joint_pos[:, lower_ids])
     ).item()
+    lower_errors = torch.abs(
+        robot.data.joint_pos[0, lower_ids] - robot.data.default_joint_pos[0, lower_ids]
+    )
     objects = {}
     objects_valid = True
     for name, obj in env.scene.rigid_objects.items():
@@ -132,6 +161,24 @@ def validate(env, policy, steps, success_count, dataset_path=None):
         "action_dimension": env.action_manager.total_action_dim,
         "controlled_joints": list(term._joint_names),
         "max_lower_body_default_pose_error_rad": lower_error,
+        "lower_body_default_pose_error_rad": {
+            name: error
+            for name, error in zip(LOWER_BODY_JOINT_NAMES, lower_errors.detach().cpu().tolist())
+        },
+        "lower_body_position_rad": {
+            name: value
+            for name, value in zip(
+                LOWER_BODY_JOINT_NAMES,
+                robot.data.joint_pos[0, lower_ids].detach().cpu().tolist(),
+            )
+        },
+        "lower_body_target_rad": {
+            name: value
+            for name, value in zip(
+                LOWER_BODY_JOINT_NAMES,
+                robot.data.joint_pos_target[0, lower_ids].detach().cpu().tolist(),
+            )
+        },
         "rigid_objects": objects,
         "articulations": articulations,
         "success_count": success_count,
@@ -141,6 +188,7 @@ def validate(env, policy, steps, success_count, dataset_path=None):
         },
         "preview_video": str(ARGS.preview_video.resolve()) if ARGS.preview_video else None,
         "recording_format": ARGS.record_format,
+        "lerobot_version": ARGS.lerobot_version if ARGS.record_format == "lerobot" else None,
         "dataset": str(dataset_path) if dataset_path else None,
     }
     if hasattr(policy, "diagnostics"):
@@ -175,7 +223,7 @@ def main() -> int:
     episode_steps = finite_steps if ARGS.record_format == "hdf5" else finite_steps + 1
     cfg.episode_length_s = episode_steps * cfg.decimation * cfg.sim.dt
     if ARGS.physics_only:
-        for camera_name in ("camera", "cam_side", "cam_left_high", "cam_left_wrist"):
+        for camera_name in ("camera", "cam_side", "cam_left_high", "cam_left_wrist", "cam_right_wrist"):
             if hasattr(cfg.scene, camera_name):
                 setattr(cfg.scene, camera_name, None)
     dataset_path = None
@@ -222,20 +270,87 @@ def main() -> int:
 
             adapter = EnvironmentFrameAdapter(env)
             task_prompt = ARGS.task_prompt or cfg.task_instruction
+            is_sugar = ARGS.task == "VLA-YCBSugarBox-G1-JointPos-v0"
+            collection = {
+                "contract_version": "1.0",
+                "dataset_profile": "g1_29body_dex3_43d_v1",
+                "robot_type": "Unitree_G1",
+                "robot_configuration": "G1 29 body joints + left/right Dex3-1; fixed simulation base excluded from vectors",
+                "robot_identifier": "unitree-official-g1-29dof-dex3-base-fix-usd",
+                "hand_identifiers": {"left": "Dex3-1-sim", "right": "Dex3-1-sim"},
+                "real_or_sim": "sim",
+                "fps": 30,
+                "joint_units": "rad",
+                "joint_coordinate_mode": "PR",
+                "sdk_mode_pr": 0,
+                "joint_reference_and_signs": (
+                    "Explicit simulator-to-contract mapping in envs/common/g1.py; no mirroring, "
+                    "absolute-value conversion, normalization, or A/B actuator coordinates"
+                ),
+                "actuator_to_joint_conversion": "none; simulator articulation exposes PR joint coordinates",
+                "collection_date": datetime.datetime.now(datetime.timezone.utc).date().isoformat(),
+                "collector": os.environ.get("USER", "unknown"),
+                "software": {
+                    "recorder": f"vla_isaaclab LeRobot v{ARGS.lerobot_version} exporter",
+                    "isaac_sim": "4.5.0.0",
+                    "isaac_lab": "v2.0.2",
+                    **project_revision(),
+                },
+                "calibration_identifier": "Isaac Sim USD articulation and pinhole camera configuration",
+                "cameras": adapter.camera_metadata,
+                "video_encoding": "AV1/yuv420p, RGB uint8 640x480 at 30 fps",
+                "clock_synchronization": {
+                    "clock": "Isaac simulation clock (integer nanoseconds)",
+                    "reference_grid": "t[n] = n / 30 seconds",
+                    "association": (
+                        "Synchronous simulation snapshot; body, hands, cameras, and the issued "
+                        "processed joint target share the frame reference timestamp"
+                    ),
+                    "tolerance_ms": 15,
+                    "resampling": "none",
+                    "raw_timestamp_fields": "source.timestamp.*_ns in source HDF5 and exported Parquet",
+                },
+                "controllers": {
+                    "all_joints": "Isaac Lab JointPositionToLimitsActionCfg position targets",
+                    "legs_and_waist": "standing hold targets",
+                    "arms_and_hands": "scripted bounded-DLS policy" if is_sugar else "standing hold targets",
+                    "stored_action": "processed absolute target after action-limit mapping",
+                    "configuration_reference": [
+                        "src/vla_isaaclab/envs/common/g1.py",
+                        "src/vla_isaaclab/envs/common/managers.py",
+                        "src/vla_isaaclab/policies/ycb_sugar_box.py" if is_sugar else "src/vla_isaaclab/policies/standing.py",
+                    ],
+                },
+                "held_and_moving_groups": (
+                    {"held": ["legs", "waist"], "moving": ["arms", "hands"]}
+                    if is_sugar else {"held": ["legs", "waist", "arms", "hands"], "moving": []}
+                ),
+                "task_success_criteria": (
+                    "Named success termination: <=15 mm XY/height error, low object speed, "
+                    "palm separation >20 cm, held for 15 steps"
+                    if is_sugar else "No task success termination; preview episode is labeled success=false"
+                ),
+                "contract_exceptions": [
+                    "observation.images.cam_right_wrist intentionally omitted per user direction on 2026-09-22"
+                ],
+            }
             writer = StagingHDF5Writer(
                 root=PROJECT_ROOT / "outputs/lerobot_staging",
                 dataset_name=Path(ARGS.dataset_name).stem,
                 features=adapter.features,
                 metadata={
+                    "collection": collection,
                     "environment_id": ARGS.task,
                     "rates_hz": {"physics": 120, "control": 30, "camera": 30},
                     "joint_names": adapter.joint_names,
+                    "simulator_joint_names": adapter.simulator_joint_names,
                     "camera_keys": adapter.camera_feature_keys,
                     "environment_state_names": adapter.environment_state_names,
                     "task_prompt": task_prompt,
                     "units": {"joint_position": "rad", "joint_velocity": "rad/s", "position": "m"},
                     "isaac_sim_version": "4.5.0.0",
                     "isaac_lab_version": "v2.0.2",
+                    "lerobot_version": ARGS.lerobot_version,
                 },
             )
             try:
@@ -246,7 +361,8 @@ def main() -> int:
                             policy = make_policy(env)
                         episode_succeeded = False
                         for episode_step in range(finite_steps):
-                            snapshot = adapter.capture()
+                            reference_time_ns = round(episode_step * 1_000_000_000 / 30)
+                            snapshot = adapter.capture(reference_time_ns)
                             action = policy.compute(episode_step)
                             _, reward, terminated, timed_out, _ = env.step(action)
                             step_succeeded = task_succeeded(env) and not getattr(policy, "failed", False)
@@ -267,17 +383,18 @@ def main() -> int:
                             steps += 1
                             if getattr(policy, "failed", False) or bool(terminated[0]) or bool(timed_out[0]):
                                 break
-                        if ARGS.task == "VLA-YCBSugarBox-G1-JointPos-v0" and not episode_succeeded:
-                            raise RuntimeError(
-                                "Refusing to save a failed sugar-box demonstration: "
-                                + json.dumps(policy.diagnostics())
-                            )
-                        writer.save_episode()
+                        writer.save_episode(success=episode_succeeded)
                 staging_path = writer.finalize()
-                conversion = subprocess.run(
-                    [sys.executable, str(PROJECT_ROOT / "scripts/convert_staging_to_lerobot.py"), str(staging_path)],
-                    check=False,
-                )
+                conversion_command = [
+                    sys.executable,
+                    str(PROJECT_ROOT / "scripts/convert_staging_to_lerobot.py"),
+                    str(staging_path),
+                    "--lerobot-version",
+                    ARGS.lerobot_version,
+                ]
+                if ARGS.include_failed_episodes:
+                    conversion_command.append("--include-failed-episodes")
+                conversion = subprocess.run(conversion_command, check=False)
                 if conversion.returncode:
                     raise RuntimeError(f"LeRobot conversion failed with exit code {conversion.returncode}")
                 dataset_path = PROJECT_ROOT / "outputs/lerobot" / Path(ARGS.dataset_name).stem

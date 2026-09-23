@@ -17,7 +17,7 @@ ACTION_TERM_NAME = "joint_positions"
 
 
 def hold_default_joint_targets(env, env_ids, asset_cfg: SceneEntityCfg):
-    """Initialize position targets for joints outside the 25-D action space."""
+    """Initialize lower-body position targets before the first 43-D action."""
     robot = env.scene[asset_cfg.name]
     if env_ids is None:
         env_ids = slice(None)

@@ -44,7 +44,19 @@ class YCBSugarBoxScriptedPolicy:
         _, self.joint_names, self.action_joint_ids = resolved_action_joints(env)
         self.name_to_action_index = {name: index for index, name in enumerate(self.joint_names)}
 
-        self.arm_joint_names = list(WAIST_JOINT_NAMES + LEFT_ARM_JOINT_NAMES)
+        # Keep waist roll/pitch at their default targets.  Only waist yaw joins
+        # the left arm in IK so the torso can turn without leaning sideways or
+        # pitching forward/backward.
+        self.arm_joint_names = [WAIST_JOINT_NAMES[0], *LEFT_ARM_JOINT_NAMES]
+        self.locked_waist_joint_names = list(WAIST_JOINT_NAMES[1:])
+        self.locked_waist_joint_ids, locked_found = self.robot.find_joints(
+            self.locked_waist_joint_names, preserve_order=True
+        )
+        if list(locked_found) != self.locked_waist_joint_names:
+            raise RuntimeError(
+                f"Locked-waist joint mismatch: expected {self.locked_waist_joint_names}, "
+                f"found {locked_found}"
+            )
         self.arm_joint_ids, found = self.robot.find_joints(self.arm_joint_names, preserve_order=True)
         if list(found) != self.arm_joint_names:
             raise RuntimeError(f"Left-arm joint mismatch: expected {self.arm_joint_names}, found {found}")
@@ -52,14 +64,20 @@ class YCBSugarBoxScriptedPolicy:
         self.hand_joint_names = list(LEFT_HAND_JOINT_NAMES)
         self.hand_action_indices = [self.name_to_action_index[name] for name in self.hand_joint_names]
         self.open_hand = torch.tensor(LEFT_HAND_OPEN_JOINT_POSITIONS, device=env.device).unsqueeze(0)
-        self.closed_hand = torch.tensor(LEFT_HAND_CLOSED_JOINT_POSITIONS, device=env.device).unsqueeze(0)
+        nominal_closed_hand = torch.tensor(
+            LEFT_HAND_CLOSED_JOINT_POSITIONS, device=env.device
+        ).unsqueeze(0)
+        self.grip_closure_scale = 1.10
+        self.closed_hand = self.open_hand + self.grip_closure_scale * (
+            nominal_closed_hand - self.open_hand
+        )
 
         palm_ids, _ = self.robot.find_bodies([LEFT_END_EFFECTOR], preserve_order=True)
         self.palm_body_id = palm_ids[0]
         self.palm_jacobian_id = self.palm_body_id - 1 if self.robot.is_fixed_base else self.palm_body_id
         self.max_joint_delta = 0.025
         self.max_tracking_error = 0.35
-        self.max_torso_deviation = math.radians(25.0)
+        self.max_waist_yaw_deviation = math.radians(25.0)
         self.ik_gain = 0.15
         self.ik_damping = 0.04
         self.orientation_weight = 0.20
@@ -110,9 +128,13 @@ class YCBSugarBoxScriptedPolicy:
 
         limits = self.robot.data.soft_joint_pos_limits[:, self.arm_joint_ids]
         lower, upper = limits[..., 0].clone(), limits[..., 1].clone()
-        torso_center = self.robot.data.default_joint_pos[:, self.arm_joint_ids[0]]
-        lower[:, 0] = torch.maximum(lower[:, 0], torso_center - self.max_torso_deviation)
-        upper[:, 0] = torch.minimum(upper[:, 0], torso_center + self.max_torso_deviation)
+        waist_yaw_center = self.robot.data.default_joint_pos[:, self.arm_joint_ids[0]]
+        lower[:, 0] = torch.maximum(
+            lower[:, 0], waist_yaw_center - self.max_waist_yaw_deviation
+        )
+        upper[:, 0] = torch.minimum(
+            upper[:, 0], waist_yaw_center + self.max_waist_yaw_deviation
+        )
         reference = torch.clamp(
             self.last_joint_targets,
             current_arm - self.max_tracking_error,
@@ -177,12 +199,17 @@ class YCBSugarBoxScriptedPolicy:
         strategy = self.strategy.diagnostics()
         strategy["control"] = {
             "arm_joint_names": self.arm_joint_names,
+            "locked_waist_joint_names": self.locked_waist_joint_names,
+            "locked_waist_joint_position_rad": self.robot.data.joint_pos[
+                0, self.locked_waist_joint_ids
+            ].detach().cpu().tolist(),
             "arm_joint_position_rad": self.robot.data.joint_pos[
                 0, self.arm_joint_ids
             ].detach().cpu().tolist(),
             "arm_joint_target_rad": self.last_joint_targets[0].detach().cpu().tolist(),
             "max_joint_delta_rad": self.max_joint_delta,
-            "max_torso_deviation_rad": self.max_torso_deviation,
+            "max_waist_yaw_deviation_rad": self.max_waist_yaw_deviation,
+            "grip_closure_scale": self.grip_closure_scale,
             "max_tracking_error_rad": self.max_tracking_error,
             "ik_method": "bounded_dls_accumulated_command",
             "ik_mode": self.last_mode,
