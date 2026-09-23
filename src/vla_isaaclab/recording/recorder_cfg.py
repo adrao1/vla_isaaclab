@@ -11,21 +11,26 @@ from .hdf5 import CompressedHDF5DatasetFileHandler
 
 class CameraCalibrationRecorder(RecorderTerm):
     def record_post_reset(self, env_ids):
-        camera = self._env.scene["camera"]
-        return "sensors/camera/calibration", {
-            "intrinsic_matrix": camera.data.intrinsic_matrices[env_ids],
-            "position_world": camera.data.pos_w[env_ids],
-            "orientation_world": camera.data.quat_w_world[env_ids],
+        cameras = {
+            name: {
+                "intrinsic_matrix": camera.data.intrinsic_matrices[env_ids],
+                "position_world": camera.data.pos_w[env_ids],
+                "orientation_world": camera.data.quat_w_world[env_ids],
+            }
+            for name, camera in self._env.scene.sensors.items()
+            if "rgb" in camera.data.output
         }
+        return "sensors/cameras/calibration", cameras
 
 
 class CameraFrameRecorder(RecorderTerm):
     def record_post_step(self):
-        output = self._env.scene["camera"].data.output
-        return "sensors/camera/frames", {
-            "rgb": output["rgb"][..., :3],
-            "depth": torch.nan_to_num(output["distance_to_image_plane"], posinf=10.0, neginf=0.0),
+        cameras = {
+            name: {"rgb": camera.data.output["rgb"][..., :3]}
+            for name, camera in self._env.scene.sensors.items()
+            if "rgb" in camera.data.output
         }
+        return "sensors/cameras/frames", cameras
 
 
 class TaskMetricRecorder(RecorderTerm):

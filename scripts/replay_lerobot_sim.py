@@ -54,7 +54,8 @@ def main() -> int:
                 env.step(torch.as_tensor(action, device=env.device).unsqueeze(0))
 
         ARGS.output.parent.mkdir(parents=True, exist_ok=True)
-        rgb = env.scene["camera"].data.output["rgb"][0, ..., :3].detach().cpu().numpy()
+        camera_name = "cam_left_high" if "cam_left_high" in env.scene.sensors else "camera"
+        rgb = env.scene.sensors[camera_name].data.output["rgb"][0, ..., :3].detach().cpu().numpy()
         Image.fromarray(rgb.astype(np.uint8), mode="RGB").save(ARGS.output)
         report = {
             "dataset": dataset_root,

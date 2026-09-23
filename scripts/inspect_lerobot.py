@@ -15,7 +15,6 @@ REQUIRED_FEATURES = {
     "observation.state",
     "observation.velocity",
     "observation.environment_state",
-    "observation.images.front",
     "action",
     "sim.action.normalized",
     "next.reward",
@@ -41,7 +40,11 @@ def main() -> int:
     actions = np.asarray(tabular["action"])
     states = np.asarray(tabular["observation.state"])
 
-    missing = sorted(REQUIRED_FEATURES - set(dataset.features))
+    expected_camera_keys = set(manifest.get("camera_keys", []))
+    video_keys = sorted(
+        key for key, feature in dataset.features.items() if feature.get("dtype") == "video"
+    )
+    missing = sorted((REQUIRED_FEATURES | expected_camera_keys) - set(dataset.features))
     timestamp_errors = []
     for episode_index in range(dataset.num_episodes):
         episode_timestamps = timestamps[episode_indices == episode_index]
@@ -50,14 +53,19 @@ def main() -> int:
 
     video_samples = []
     if not args.no_video_check and len(dataset):
-        for index in sorted({0, len(dataset) // 2, len(dataset) - 1}):
-            image = dataset[index]["observation.images.front"]
-            video_samples.append({"index": index, "shape": list(image.shape), "finite": bool(image.isfinite().all())})
+        for video_key in video_keys:
+            for index in sorted({0, len(dataset) // 2, len(dataset) - 1}):
+                image = dataset[index][video_key]
+                video_samples.append(
+                    {"key": video_key, "index": index, "shape": list(image.shape),
+                     "finite": bool(image.isfinite().all())}
+                )
 
     valid = all(
         (
             manifest.get("recording_complete") is True,
             not missing,
+            bool(video_keys),
             dataset.fps == 30,
             dataset.num_episodes == manifest.get("episodes"),
             len(dataset) == manifest.get("frames"),
@@ -80,6 +88,7 @@ def main() -> int:
         "action_shape": list(actions.shape),
         "state_shape": list(states.shape),
         "missing_features": missing,
+        "video_keys": video_keys,
         "timestamp_error_episodes": timestamp_errors,
         "video_samples": video_samples,
         "task_prompt": manifest.get("task_prompt"),

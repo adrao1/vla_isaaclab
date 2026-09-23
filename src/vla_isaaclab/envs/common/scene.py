@@ -139,3 +139,34 @@ def camera_cfg(eye, target) -> CameraCfg:
             clipping_range=(0.05, 10.0),
         ),
     )
+
+
+def robot_rgb_camera_cfg(
+    parent_link: str,
+    position: tuple[float, float, float],
+    orientation_wxyz: tuple[float, float, float, float],
+    focal_length: float,
+) -> CameraCfg:
+    """Create a 30 Hz RGB camera rigidly attached to a robot link.
+
+    The supplied pose uses the parent link frame with the world-style camera
+    convention: camera forward is +X and camera up is +Z.
+    """
+    return CameraCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/Robot/{parent_link}/Camera",
+        update_period=1.0 / 30.0,
+        width=640,
+        height=480,
+        data_types=["rgb"],
+        offset=CameraCfg.OffsetCfg(
+            pos=position,
+            rot=orientation_wxyz,
+            convention="world",
+        ),
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=focal_length,
+            focus_distance=0.7,
+            horizontal_aperture=20.955,
+            clipping_range=(0.03, 5.0),
+        ),
+    )
