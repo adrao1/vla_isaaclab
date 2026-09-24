@@ -1,15 +1,22 @@
 """MDP terms for the YCB sugar-box environment."""
 
-from .commands import FixedPoseCommand, FixedPoseCommandCfg
-from .observations import left_ee_pose, object_state
+from .commands import (
+    FixedPoseCommand,
+    FixedPoseCommandCfg,
+)
+from .observations import (
+    left_ee_pose,
+    object_state,
+)
 from .rewards import (
-    grasp_closure_reward,
+    grasp_contact_reward,
     grasp_lift_reward,
     grasp_reaching_reward,
     grasp_success_reward,
     placement_reward,
 )
 from .terminations import (
+    dex3_grasp_contacts,
     grasp_metrics,
     grasp_success,
     invalid_state,
@@ -18,10 +25,12 @@ from .terminations import (
     task_success,
 )
 
+
 __all__ = [
     "FixedPoseCommand",
     "FixedPoseCommandCfg",
-    "grasp_closure_reward",
+    "dex3_grasp_contacts",
+    "grasp_contact_reward",
     "grasp_lift_reward",
     "grasp_metrics",
     "grasp_reaching_reward",

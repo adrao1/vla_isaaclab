@@ -2,11 +2,18 @@
 
 import isaaclab.envs.mdp as base_mdp
 
-from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.managers import (
+    RewardTermCfg as RewTerm,
+)
+from isaaclab.managers import (
+    TerminationTermCfg as DoneTerm,
+)
 from isaaclab.utils import configclass
 
-from ..common import LEFT_END_EFFECTOR, SUPPORT_HEIGHT
+from ..common import (
+    LEFT_END_EFFECTOR,
+    SUPPORT_HEIGHT,
+)
 from . import mdp
 from .env_cfg import (
     SUGAR_BOX_HALF_HEIGHT_M,
@@ -14,7 +21,10 @@ from .env_cfg import (
 )
 
 
-INITIAL_BOX_HEIGHT = SUPPORT_HEIGHT + SUGAR_BOX_HALF_HEIGHT_M
+INITIAL_BOX_HEIGHT = (
+    SUPPORT_HEIGHT
+    + SUGAR_BOX_HALF_HEIGHT_M
+)
 
 
 @configclass
@@ -29,17 +39,19 @@ class GraspRewardsCfg:
         },
     )
 
-    # Encourage Dex3 closure only when the palm is near the object.
-    close = RewTerm(
-        func=mdp.grasp_closure_reward,
+    # X-Sim-style grasp signal: reward actual physical grasp rather than
+    # merely rewarding finger closure.
+    #
+    # For Dex3, all three logical fingers must contact the sugar box.
+    grasp = RewTerm(
+        func=mdp.grasp_contact_reward,
         weight=2.0,
         params={
-            "palm_body_name": LEFT_END_EFFECTOR,
-            "initial_box_height": INITIAL_BOX_HEIGHT,
+            "min_force": 0.5,
         },
     )
 
-    # Strongest dense signal: actually make the box rise.
+    # Strong dense signal: actually make the box rise.
     lift = RewTerm(
         func=mdp.grasp_lift_reward,
         weight=4.0,
@@ -50,7 +62,7 @@ class GraspRewardsCfg:
         },
     )
 
-    # Bonus once a genuine grasp-and-lift state is reached.
+    # Bonus once a genuine contact grasp-and-lift state is reached.
     success_bonus = RewTerm(
         func=mdp.grasp_success_reward,
         weight=10.0,
@@ -58,7 +70,7 @@ class GraspRewardsCfg:
             "palm_body_name": LEFT_END_EFFECTOR,
             "initial_box_height": INITIAL_BOX_HEIGHT,
             "lift_threshold": 0.03,
-            "closure_threshold": 0.35,
+            "min_contact_force": 0.5,
             "max_hand_distance": 0.22,
         },
     )
@@ -72,7 +84,7 @@ class GraspTerminationsCfg:
             "palm_body_name": LEFT_END_EFFECTOR,
             "initial_box_height": INITIAL_BOX_HEIGHT,
             "lift_threshold": 0.03,
-            "closure_threshold": 0.35,
+            "min_contact_force": 0.5,
             "max_hand_distance": 0.22,
             "hold_steps": 90,
         },
@@ -80,7 +92,9 @@ class GraspTerminationsCfg:
 
     object_fallen = DoneTerm(
         func=mdp.object_fallen,
-        params={"support_height": SUPPORT_HEIGHT},
+        params={
+            "support_height": SUPPORT_HEIGHT
+        },
     )
 
     invalid_state = DoneTerm(
@@ -94,11 +108,17 @@ class GraspTerminationsCfg:
 
 
 @configclass
-class YCBSugarBoxGraspEnvCfg(YCBSugarBoxEnvCfg):
+class YCBSugarBoxGraspEnvCfg(
+    YCBSugarBoxEnvCfg
+):
     """Sugar-box grasp-and-lift task used for PPO training."""
 
-    rewards: GraspRewardsCfg = GraspRewardsCfg()
-    terminations: GraspTerminationsCfg = GraspTerminationsCfg()
+    rewards: GraspRewardsCfg = (
+        GraspRewardsCfg()
+    )
+    terminations: GraspTerminationsCfg = (
+        GraspTerminationsCfg()
+    )
 
     # Grasping should not require the full 60-second placement horizon.
     episode_length_s: float = 30.0
