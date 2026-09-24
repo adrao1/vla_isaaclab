@@ -4,7 +4,11 @@ import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from .terminations import grasp_metrics, task_metrics
+from .terminations import (
+    dex3_grasp_contacts,
+    grasp_metrics,
+    task_metrics,
+)
 
 
 def placement_reward(
@@ -13,7 +17,11 @@ def placement_reward(
     command_name: str,
 ) -> torch.Tensor:
     """Original pick-and-place reward."""
-    metrics = task_metrics(env, palm_body_name, command_name)
+    metrics = task_metrics(
+        env,
+        palm_body_name,
+        command_name,
+    )
 
     return 1.0 - torch.tanh(
         25.0 * metrics["xy_error"]
@@ -37,30 +45,35 @@ def grasp_reaching_reward(
 
     # Mirrors the two-scale reaching structure used by X-Sim:
     # one broad attraction term and one sharper near-object term.
-    reward = 1.0 - torch.tanh(3.0 * distance)
-    reward += 1.0 - torch.tanh(30.0 * distance)
+    reward = (
+        1.0
+        - torch.tanh(
+            3.0 * distance
+        )
+    )
+    reward += (
+        1.0
+        - torch.tanh(
+            30.0 * distance
+        )
+    )
 
     return reward / 2.0
 
 
-def grasp_closure_reward(
+def grasp_contact_reward(
     env: ManagerBasedRLEnv,
-    palm_body_name: str,
-    initial_box_height: float,
+    min_force: float = 0.5,
 ) -> torch.Tensor:
-    """Reward finger closure, but primarily when the hand is near the box."""
-    metrics = grasp_metrics(
+    """Reward simultaneous sugar-box contact by all three Dex3 fingers."""
+    contacts = dex3_grasp_contacts(
         env,
-        palm_body_name,
-        initial_box_height,
+        min_force=min_force,
     )
 
-    distance = metrics["hand_distance"]
-    closure = metrics["closure_fraction"]
-
-    proximity = 1.0 - torch.tanh(5.0 * distance)
-
-    return proximity * closure
+    return contacts[
+        "is_grasping"
+    ].float()
 
 
 def grasp_lift_reward(
@@ -77,13 +90,19 @@ def grasp_lift_reward(
     )
 
     lift_progress = torch.clamp(
-        metrics["lift_height"] / lift_target,
+        metrics["lift_height"]
+        / lift_target,
         min=0.0,
         max=1.0,
     )
 
-    # Requiring some closure makes accidental object motion less valuable.
-    return lift_progress * metrics["closure_fraction"]
+    # Keep the existing closure-based shaping here for this first
+    # contact-reward experiment. Actual grasp validity is handled by
+    # grasp_contact_reward() and grasp_success().
+    return (
+        lift_progress
+        * metrics["closure_fraction"]
+    )
 
 
 def grasp_success_reward(
@@ -91,18 +110,25 @@ def grasp_success_reward(
     palm_body_name: str,
     initial_box_height: float,
     lift_threshold: float = 0.03,
-    closure_threshold: float = 0.60,
+    min_contact_force: float = 0.5,
     max_hand_distance: float = 0.22,
 ) -> torch.Tensor:
-    """One-step dense bonus when the physical grasp condition is satisfied."""
+    """Dense bonus for a three-finger contact grasp above the lift threshold."""
     metrics = grasp_metrics(
         env,
         palm_body_name,
         initial_box_height,
+        min_contact_force=min_contact_force,
     )
 
     return (
-        (metrics["hand_distance"] < max_hand_distance)
-        & (metrics["closure_fraction"] > closure_threshold)
-        & (metrics["lift_height"] > lift_threshold)
+        (
+            metrics["hand_distance"]
+            < max_hand_distance
+        )
+        & metrics["is_grasping"]
+        & (
+            metrics["lift_height"]
+            > lift_threshold
+        )
     ).float()
