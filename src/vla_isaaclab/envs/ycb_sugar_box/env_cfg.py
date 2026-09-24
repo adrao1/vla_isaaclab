@@ -12,6 +12,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
 
 from ..common import (
@@ -33,8 +34,10 @@ from . import mdp
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 SUGAR_BOX_USD = PROJECT_ROOT / "assets/YCB/Axis_Aligned_Physics/004_sugar_box.usd"
+
 CAMERA_EYE = (0.35, 1.90, 1.85)
 CAMERA_TARGET = (-0.15, -0.30, 0.72)
+
 SUGAR_BOX_HALF_HEIGHT_M = 0.088
 SUGAR_BOX_ORIENTATION_WXYZ = (
     0.6728436464587195,
@@ -43,8 +46,14 @@ SUGAR_BOX_ORIENTATION_WXYZ = (
     0.21744292911045368,
 )
 SUGAR_BOX_TABLE_YAW_RAD = 0.6251518035481555
-INITIAL_XY = (0.010509244994595768, -0.2904894446620847)
+
+INITIAL_XY = (
+    0.010509244994595768,
+    -0.2904894446620847,
+)
+
 TARGET_DISPLACEMENT_M = -0.02
+
 TARGET_POSE = (
     INITIAL_XY[0] + TARGET_DISPLACEMENT_M,
     INITIAL_XY[1],
@@ -56,13 +65,33 @@ TARGET_POSE = (
 def _sugar_box_cfg() -> RigidObjectCfg:
     if not SUGAR_BOX_USD.is_file():
         raise FileNotFoundError(f"Missing cached YCB asset: {SUGAR_BOX_USD}")
+
     return RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        spawn=sim_utils.UsdFileCfg(usd_path=str(SUGAR_BOX_USD)),
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(SUGAR_BOX_USD),
+        ),
         init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(INITIAL_XY[0], INITIAL_XY[1], SUPPORT_HEIGHT + SUGAR_BOX_HALF_HEIGHT_M),
+            pos=(
+                INITIAL_XY[0],
+                INITIAL_XY[1],
+                SUPPORT_HEIGHT + SUGAR_BOX_HALF_HEIGHT_M,
+            ),
             rot=SUGAR_BOX_ORIENTATION_WXYZ,
         ),
+    )
+
+
+def _finger_contact_sensor(link_name: str) -> ContactSensorCfg:
+    """Create a contact sensor for one Dex3 link against the sugar box."""
+    return ContactSensorCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/Robot/{link_name}",
+        filter_prim_paths_expr=[
+            "{ENV_REGEX_NS}/Object",
+        ],
+        update_period=0.0,
+        history_length=0,
+        debug_vis=False,
     )
 
 
@@ -73,29 +102,75 @@ _SURFACE, _LEG_0, _LEG_1, _LEG_2, _LEG_3 = table_cfgs()
 @configclass
 class YCBSugarBoxSceneCfg(InteractiveSceneCfg):
     ground = ground_cfg()
+
     dome_light = _DOME_LIGHT
     key_light = _KEY_LIGHT
+
     support_surface = _SURFACE
     support_leg_0 = _LEG_0
     support_leg_1 = _LEG_1
     support_leg_2 = _LEG_2
     support_leg_3 = _LEG_3
+
     robot = make_g1_cfg((0.0, -0.64, 0.80))
-    cam_side = camera_cfg(CAMERA_EYE, CAMERA_TARGET)
+
+    # ------------------------------------------------------------------
+    # Dex3 left-hand contact sensors.
+    #
+    # Instrument every rigid link in the three left fingers so that we
+    # can determine which physical links actually contact the sugar box
+    # during the known-working scripted grasp.
+    # ------------------------------------------------------------------
+
+    thumb_0_contact = _finger_contact_sensor(
+        "left_hand_thumb_0_link"
+    )
+    thumb_1_contact = _finger_contact_sensor(
+        "left_hand_thumb_1_link"
+    )
+    thumb_2_contact = _finger_contact_sensor(
+        "left_hand_thumb_2_link"
+    )
+
+    index_0_contact = _finger_contact_sensor(
+        "left_hand_index_0_link"
+    )
+    index_1_contact = _finger_contact_sensor(
+        "left_hand_index_1_link"
+    )
+
+    middle_0_contact = _finger_contact_sensor(
+        "left_hand_middle_0_link"
+    )
+    middle_1_contact = _finger_contact_sensor(
+        "left_hand_middle_1_link"
+    )
+
+    cam_side = camera_cfg(
+        CAMERA_EYE,
+        CAMERA_TARGET,
+    )
     cam_left_high = g1_head_camera_cfg()
     cam_left_wrist = g1_left_wrist_camera_cfg()
+
     object = _sugar_box_cfg()
+
     target_marker = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/SugarBoxTarget",
         spawn=sim_utils.CuboidCfg(
             size=(0.095, 0.050, 0.003),
             visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(0.1, 0.8, 0.2), opacity=0.35
+                diffuse_color=(0.1, 0.8, 0.2),
+                opacity=0.35,
             ),
             collision_props=None,
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(INITIAL_XY[0] + TARGET_DISPLACEMENT_M, INITIAL_XY[1], SUPPORT_HEIGHT + 0.002),
+            pos=(
+                INITIAL_XY[0] + TARGET_DISPLACEMENT_M,
+                INITIAL_XY[1],
+                SUPPORT_HEIGHT + 0.002,
+            ),
             rot=(
                 math.cos(SUGAR_BOX_TABLE_YAW_RAD / 2),
                 0.0,
@@ -108,30 +183,61 @@ class YCBSugarBoxSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CommandsCfg:
-    target_pose = mdp.FixedPoseCommandCfg(pose=TARGET_POSE)
+    target_pose = mdp.FixedPoseCommandCfg(
+        pose=TARGET_POSE
+    )
 
 
 @configclass
 class SugarBoxPolicyCfg(ObsGroup):
     joint_position = ObsTerm(
         func=base_mdp.joint_pos,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=list(ACTION_JOINT_NAMES))},
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=list(ACTION_JOINT_NAMES),
+            )
+        },
     )
+
     joint_velocity = ObsTerm(
         func=base_mdp.joint_vel,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=list(ACTION_JOINT_NAMES))},
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=list(ACTION_JOINT_NAMES),
+            )
+        },
     )
+
     left_end_effector_pose = ObsTerm(
         func=mdp.left_ee_pose,
         params={
             "asset_cfg": SceneEntityCfg(
-                "robot", body_names=[LEFT_END_EFFECTOR], preserve_order=True
+                "robot",
+                body_names=[LEFT_END_EFFECTOR],
+                preserve_order=True,
             )
         },
     )
-    sugar_box_state = ObsTerm(func=mdp.object_state, params={"asset_cfg": SceneEntityCfg("object")})
-    target_pose = ObsTerm(func=base_mdp.generated_commands, params={"command_name": "target_pose"})
-    last_action = ObsTerm(func=base_mdp.last_action)
+
+    sugar_box_state = ObsTerm(
+        func=mdp.object_state,
+        params={
+            "asset_cfg": SceneEntityCfg("object")
+        },
+    )
+
+    target_pose = ObsTerm(
+        func=base_mdp.generated_commands,
+        params={
+            "command_name": "target_pose"
+        },
+    )
+
+    last_action = ObsTerm(
+        func=base_mdp.last_action
+    )
 
     def __post_init__(self):
         self.enable_corruption = False
@@ -148,7 +254,10 @@ class RewardsCfg:
     placement = RewTerm(
         func=mdp.placement_reward,
         weight=2.0,
-        params={"palm_body_name": LEFT_END_EFFECTOR, "command_name": "target_pose"},
+        params={
+            "palm_body_name": LEFT_END_EFFECTOR,
+            "command_name": "target_pose",
+        },
     )
 
 
@@ -156,27 +265,49 @@ class RewardsCfg:
 class TerminationsCfg:
     success = DoneTerm(
         func=mdp.task_success,
-        params={"palm_body_name": LEFT_END_EFFECTOR, "command_name": "target_pose"},
+        params={
+            "palm_body_name": LEFT_END_EFFECTOR,
+            "command_name": "target_pose",
+        },
     )
-    object_fallen = DoneTerm(func=mdp.object_fallen, params={"support_height": SUPPORT_HEIGHT})
-    invalid_state = DoneTerm(func=mdp.invalid_state)
-    time_out = DoneTerm(func=base_mdp.time_out, time_out=True)
+
+    object_fallen = DoneTerm(
+        func=mdp.object_fallen,
+        params={
+            "support_height": SUPPORT_HEIGHT
+        },
+    )
+
+    invalid_state = DoneTerm(
+        func=mdp.invalid_state
+    )
+
+    time_out = DoneTerm(
+        func=base_mdp.time_out,
+        time_out=True,
+    )
 
 
 @configclass
 class YCBSugarBoxEnvCfg(VLAEnvCfg):
     scene: YCBSugarBoxSceneCfg = YCBSugarBoxSceneCfg(
-        num_envs=1, env_spacing=3.0, replicate_physics=True
+        num_envs=1,
+        env_spacing=3.0,
+        replicate_physics=True,
     )
+
     actions: JointLimitActionsCfg = JointLimitActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+
     episode_length_s: float = 60.0
+
     task_instruction: str = (
-        "Grasp the rotated YCB 004 sugar box from the robot-facing side, move it 2 cm "
-        "toward robot-left, and place it back on the table."
+        "Grasp the rotated YCB 004 sugar box from the robot-facing side, "
+        "move it 2 cm toward robot-left, and place it back on the table."
     )
+
     camera_eye: tuple[float, float, float] = CAMERA_EYE
     camera_target: tuple[float, float, float] = CAMERA_TARGET
