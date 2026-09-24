@@ -966,9 +966,10 @@ def main():
 
         record_this_rollout = (
             video_enabled
-            and iteration
-            % ARGS.video_every
-            == 0
+            and (
+                iteration % ARGS.video_every == 0
+                or iteration == num_iterations
+            )
         )
 
         video_recorder = None
