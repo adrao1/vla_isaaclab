@@ -182,7 +182,7 @@ def grasp_metrics(
     initial_box_height: float,
     min_contact_force: float = 0.5,
 ) -> dict[str, torch.Tensor]:
-    """Metrics used by the grasp-and-lift RL task."""
+    """Metrics used by the grasp RL task."""
     robot: Articulation = env.scene["robot"]
     sugar_box: RigidObject = env.scene["object"]
 
@@ -360,32 +360,24 @@ def task_success(
 
 def grasp_success(
     env: ManagerBasedRLEnv,
-    palm_body_name: str,
-    initial_box_height: float,
-    lift_threshold: float = 0.03,
     min_contact_force: float = 0.5,
-    max_hand_distance: float = 0.22,
-    hold_steps: int = 10,
+    hold_steps: int = 90,
 ) -> torch.Tensor:
-    """Success when all three Dex3 fingers grasp and lift the sugar box."""
-    metrics = grasp_metrics(
+    """Success when a physical three-finger Dex3 grasp is held."""
+    contacts = dex3_grasp_contacts(
         env,
-        palm_body_name,
-        initial_box_height,
-        min_contact_force=min_contact_force,
+        min_force=min_contact_force,
     )
 
-    instantaneous = (
-        (
-            metrics["hand_distance"]
-            < max_hand_distance
-        )
-        & metrics["is_grasping"]
-        & (
-            metrics["lift_height"]
-            > lift_threshold
-        )
-    )
+    # Success for this simplified experiment depends only on the same
+    # physical grasp definition used by the grasp reward:
+    #
+    #     thumb AND index AND middle contact.
+    #
+    # There is deliberately no hand-distance or lift requirement here.
+    instantaneous = contacts[
+        "is_grasping"
+    ]
 
     counter = getattr(
         env,
