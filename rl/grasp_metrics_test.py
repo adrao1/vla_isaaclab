@@ -59,6 +59,13 @@ def main():
 
     env = gym.make(ARGS.task, cfg=cfg).unwrapped
 
+    robot = env.scene["robot"]
+
+    print("\nRobot body names:")
+    for i, name in enumerate(robot.body_names):
+        print(f"{i:3d}: {name}")
+    print()
+
     initial_box_height = SUPPORT_HEIGHT + SUGAR_BOX_HALF_HEIGHT_M
 
     try:
