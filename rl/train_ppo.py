@@ -132,23 +132,58 @@ def parse_args():
         default=10,
     )
 
+    parser.add_argument(
+        "--video-every",
+        type=int,
+        default=0,
+        help=(
+            "Record env 0's actual PPO rollout every N iterations. "
+            "Use 0 to disable periodic videos."
+        ),
+    )
+
+    parser.add_argument(
+        "--video-fps",
+        type=int,
+        default=30,
+        help="Frame rate for periodic PPO rollout videos.",
+    )
+
     AppLauncher.add_app_launcher_args(parser)
 
     args = parser.parse_args()
 
-    # RL training is state-based. We do not need RGB sensors.
-    args.enable_cameras = False
+    if args.video_every < 0:
+        parser.error("--video-every must be >= 0")
+
+    if args.video_fps <= 0:
+        parser.error("--video-fps must be > 0")
+
+    # State-based PPO does not consume RGB observations. Cameras are enabled
+    # only when periodic rollout videos are explicitly requested.
+    args.enable_cameras = args.video_every > 0
 
     return args
 
 
 ARGS = parse_args()
 
-ARGS.experience = str(
-    PROJECT_ROOT
-    / "configs"
-    / "ycb.python.headless.kit"
-)
+if ARGS.video_every > 0:
+    ARGS.experience = str(
+        PROJECT_ROOT
+        / "configs"
+        / (
+            "ycb.python.headless.rendering.kit"
+            if ARGS.headless
+            else "ycb.python.rendering.kit"
+        )
+    )
+else:
+    ARGS.experience = str(
+        PROJECT_ROOT
+        / "configs"
+        / "ycb.python.headless.kit"
+    )
 
 ARGS.kit_args = (
     f"--portable-root "
@@ -379,6 +414,87 @@ def make_writer(
     )
 
 
+class RolloutVideoRecorder:
+    """Encode RGB frames to H.264 using the repo's existing PyAV pattern."""
+
+    def __init__(
+        self,
+        path: Path,
+        fps: int,
+    ):
+        try:
+            import av
+        except ImportError as exc:
+            raise RuntimeError(
+                "Periodic video recording requires PyAV. "
+                "The repo's preview-video path also uses the 'av' package."
+            ) from exc
+
+        self.av = av
+        self.path = path
+        self.path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        self.container = av.open(
+            str(self.path),
+            mode="w",
+        )
+
+        self.stream = None
+        self.fps = fps
+
+    def add_rgb(
+        self,
+        rgb: np.ndarray,
+    ):
+        """Append one uint8 RGB frame."""
+
+        if rgb.dtype != np.uint8:
+            rgb = rgb.astype(
+                np.uint8
+            )
+
+        if self.stream is None:
+            height, width = rgb.shape[:2]
+
+            self.stream = self.container.add_stream(
+                "libx264",
+                rate=self.fps,
+            )
+
+            self.stream.width = width
+            self.stream.height = height
+            self.stream.pix_fmt = "yuv420p"
+
+        frame = self.av.VideoFrame.from_ndarray(
+            rgb,
+            format="rgb24",
+        )
+
+        for packet in self.stream.encode(
+            frame
+        ):
+            self.container.mux(
+                packet
+            )
+
+    def close(self):
+        if self.container is None:
+            return
+
+        if self.stream is not None:
+            for packet in self.stream.encode():
+                self.container.mux(
+                    packet
+                )
+
+        self.container.close()
+        self.container = None
+        self.stream = None
+
+
 # =====================================================================
 # Main
 # =====================================================================
@@ -420,7 +536,13 @@ def main():
         num_envs=ARGS.num_envs,
     )
 
-    # PPO does not use RGB observations.
+    # PPO itself does not use RGB observations. When periodic videos are
+    # requested, keep only the external side camera and disable every other
+    # RGB camera so recording adds as little rendering overhead as possible.
+    video_enabled = (
+        ARGS.video_every > 0
+    )
+
     for camera_name in (
         "camera",
         "cam_side",
@@ -428,9 +550,17 @@ def main():
         "cam_left_wrist",
         "cam_right_wrist",
     ):
-        if hasattr(
-            cfg.scene,
-            camera_name,
+        keep_for_video = (
+            video_enabled
+            and camera_name == "cam_side"
+        )
+
+        if (
+            not keep_for_video
+            and hasattr(
+                cfg.scene,
+                camera_name,
+            )
         ):
             setattr(
                 cfg.scene,
@@ -442,6 +572,16 @@ def main():
         ARGS.task,
         cfg=cfg,
     ).unwrapped
+
+    if (
+        video_enabled
+        and "cam_side"
+        not in env.scene.sensors
+    ):
+        raise RuntimeError(
+            "--video-every requires the 'cam_side' scene camera, "
+            "but it is not available in this task."
+        )
 
     obs_dict, _ = env.reset(
         seed=ARGS.seed
@@ -636,6 +776,17 @@ def main():
         exist_ok=True,
     )
 
+    video_dir = (
+        run_dir
+        / "videos"
+    )
+
+    if video_enabled:
+        video_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
     writer = make_writer(
         run_dir
     )
@@ -741,6 +892,17 @@ def main():
         run_dir,
     )
 
+    print(
+        "video_every:",
+        ARGS.video_every,
+    )
+
+    if video_enabled:
+        print(
+            "video_dir:",
+            video_dir,
+        )
+
     print("=" * 72)
     print()
 
@@ -801,6 +963,31 @@ def main():
         # =============================================================
 
         agent.eval()
+
+        record_this_rollout = (
+            video_enabled
+            and iteration
+            % ARGS.video_every
+            == 0
+        )
+
+        video_recorder = None
+
+        if record_this_rollout:
+            video_path = (
+                video_dir
+                / f"iter_{iteration:04d}.mp4"
+            )
+
+            video_recorder = RolloutVideoRecorder(
+                path=video_path,
+                fps=ARGS.video_fps,
+            )
+
+            print(
+                f"recording rollout video: "
+                f"{video_path}"
+            )
 
         rollout_start = time.time()
 
@@ -971,6 +1158,35 @@ def main():
 
 
             # ---------------------------------------------------------
+            # Periodic rollout video
+            #
+            # This records env 0 from the exact sampled PPO rollout.
+            # It does not replace, resample, or modify the action.
+            # ---------------------------------------------------------
+
+            if video_recorder is not None:
+                rgb = (
+                    env.scene[
+                        "cam_side"
+                    ]
+                    .data.output[
+                        "rgb"
+                    ][
+                        0,
+                        ...,
+                        :3,
+                    ]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+
+                video_recorder.add_rgb(
+                    rgb
+                )
+
+
+            # ---------------------------------------------------------
             # Grasp success / episode diagnostics
             # ---------------------------------------------------------
 
@@ -1036,6 +1252,14 @@ def main():
                     f"at rollout step {step}"
                 )
 
+
+        if video_recorder is not None:
+            video_recorder.close()
+
+            print(
+                f"saved video: "
+                f"{video_path}"
+            )
 
         rollout_time = (
             time.time()
