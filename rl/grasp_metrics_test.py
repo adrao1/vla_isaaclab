@@ -219,7 +219,9 @@ def main():
                         f"closure="
                         f"{metrics['closure_fraction'][0].item():.4f} "
                         f"lift="
-                        f"{metrics['lift_height'][0].item():.4f}"
+                        f"{metrics['lift_height'][0].item():.4f} "
+                        f"grasp="
+                        f"{int(metrics['is_grasping'][0].item())}"
                     )
 
                     print(
