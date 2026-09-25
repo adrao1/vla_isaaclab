@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument(
         "--num-steps",
         type=int,
-        default=300,
+        default=900,
     )
 
     parser.add_argument(
@@ -237,7 +237,6 @@ def layer_init(
     bias_const: float = 0.0,
 ):
     """X-Sim / CleanRL-style orthogonal initialization."""
-
     torch.nn.init.orthogonal_(
         layer.weight,
         std,
@@ -433,7 +432,6 @@ class RolloutVideoRecorder:
 
         self.av = av
         self.path = path
-
         self.path.parent.mkdir(
             parents=True,
             exist_ok=True,
@@ -927,12 +925,6 @@ def main():
         diag_distance_sum = 0.0
         diag_closure_sum = 0.0
         diag_lift_sum = 0.0
-
-        diag_thumb_contact_sum = 0.0
-        diag_index_contact_sum = 0.0
-        diag_middle_contact_sum = 0.0
-        diag_grasp_sum = 0.0
-
         diag_samples = 0
 
         diag_min_distance = float("inf")
@@ -974,10 +966,9 @@ def main():
 
         record_this_rollout = (
             video_enabled
-            and (
-                iteration % ARGS.video_every == 0
-                or iteration == num_iterations
-            )
+            and iteration
+            % ARGS.video_every
+            == 0
         )
 
         video_recorder = None
@@ -1043,22 +1034,6 @@ def main():
                         "lift_height"
                     ]
 
-                    thumb_contact = metrics[
-                        "thumb_contact"
-                    ]
-
-                    index_contact = metrics[
-                        "index_contact"
-                    ]
-
-                    middle_contact = metrics[
-                        "middle_contact"
-                    ]
-
-                    is_grasping = metrics[
-                        "is_grasping"
-                    ]
-
                     diag_distance_sum += (
                         distance.sum().item()
                     )
@@ -1069,34 +1044,6 @@ def main():
 
                     diag_lift_sum += (
                         lift.sum().item()
-                    )
-
-                    diag_thumb_contact_sum += (
-                        thumb_contact
-                        .float()
-                        .sum()
-                        .item()
-                    )
-
-                    diag_index_contact_sum += (
-                        index_contact
-                        .float()
-                        .sum()
-                        .item()
-                    )
-
-                    diag_middle_contact_sum += (
-                        middle_contact
-                        .float()
-                        .sum()
-                        .item()
-                    )
-
-                    diag_grasp_sum += (
-                        is_grasping
-                        .float()
-                        .sum()
-                        .item()
                     )
 
                     diag_samples += num_envs
@@ -1134,6 +1081,7 @@ def main():
                 ) = agent.get_action_and_value(
                     next_obs
                 )
+
 
                 values[
                     step
@@ -1210,31 +1158,6 @@ def main():
 
 
             # ---------------------------------------------------------
-            # Episode reset handling
-            #
-            # Isaac Lab automatically resets individual environments
-            # after termination/truncation. EEDeltaController keeps a
-            # persistent IK target, so reset that target for exactly the
-            # environments whose episodes just ended.
-            # ---------------------------------------------------------
-
-            done_mask = torch.logical_or(
-                terminated,
-                truncated,
-            )
-
-            done_ids = torch.nonzero(
-                done_mask,
-                as_tuple=False,
-            ).squeeze(-1)
-
-            if done_ids.numel() > 0:
-                controller.reset(
-                    done_ids
-                )
-
-
-            # ---------------------------------------------------------
             # Periodic rollout video
             #
             # This records env 0 from the exact sampled PPO rollout.
@@ -1280,7 +1203,10 @@ def main():
                 )
 
                 diag_done_episodes += int(
-                    done_mask
+                    torch.logical_or(
+                        terminated,
+                        truncated,
+                    )
                     .sum()
                     .item()
                 )
@@ -1292,7 +1218,11 @@ def main():
 
 
             next_done = (
-                done_mask.float()
+                torch.logical_or(
+                    terminated,
+                    truncated,
+                )
+                .float()
             )
 
 
@@ -1856,12 +1786,6 @@ def main():
         mean_hand_distance = 0.0
         mean_closure = 0.0
         mean_lift = 0.0
-
-        thumb_contact_rate = 0.0
-        index_contact_rate = 0.0
-        middle_contact_rate = 0.0
-        grasp_rate = 0.0
-
         success_rate = 0.0
 
 
@@ -1881,26 +1805,6 @@ def main():
 
             mean_lift = (
                 diag_lift_sum
-                / diag_samples
-            )
-
-            thumb_contact_rate = (
-                diag_thumb_contact_sum
-                / diag_samples
-            )
-
-            index_contact_rate = (
-                diag_index_contact_sum
-                / diag_samples
-            )
-
-            middle_contact_rate = (
-                diag_middle_contact_sum
-                / diag_samples
-            )
-
-            grasp_rate = (
-                diag_grasp_sum
                 / diag_samples
             )
 
@@ -1938,10 +1842,6 @@ def main():
                 f"closure_max={diag_max_closure:.4f} "
                 f"lift_mean={mean_lift:.4f} "
                 f"lift_max={diag_max_lift:.4f} "
-                f"thumb={thumb_contact_rate:.3f} "
-                f"index={index_contact_rate:.3f} "
-                f"middle={middle_contact_rate:.3f} "
-                f"grasp_rate={grasp_rate:.3f} "
                 f"successes={diag_successes} "
                 f"episodes={diag_done_episodes} "
                 f"success_rate={success_rate:.3f}"
@@ -2080,30 +1980,6 @@ def main():
                 writer.add_scalar(
                     "grasp/max_lift",
                     diag_max_lift,
-                    global_step,
-                )
-
-                writer.add_scalar(
-                    "grasp/thumb_contact_rate",
-                    thumb_contact_rate,
-                    global_step,
-                )
-
-                writer.add_scalar(
-                    "grasp/index_contact_rate",
-                    index_contact_rate,
-                    global_step,
-                )
-
-                writer.add_scalar(
-                    "grasp/middle_contact_rate",
-                    middle_contact_rate,
-                    global_step,
-                )
-
-                writer.add_scalar(
-                    "grasp/grasp_rate",
-                    grasp_rate,
                     global_step,
                 )
 
