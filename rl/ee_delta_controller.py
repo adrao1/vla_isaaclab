@@ -173,12 +173,35 @@ class EEDeltaController:
             :, self.arm_joint_ids
         ].clone()
 
-    def reset(self) -> None:
-        """Reset persistent IK targets after env.reset()."""
+    def reset(
+        self,
+        env_ids: torch.Tensor | None = None,
+    ) -> None:
+        """Reset persistent IK targets after environment reset.
 
-        self.last_joint_targets = self.robot.data.joint_pos[
+        Args:
+            env_ids: Optional indices of environments that were reset.
+                If None, reset controller state for all environments.
+        """
+
+        current_arm = self.robot.data.joint_pos[
             :, self.arm_joint_ids
-        ].clone()
+        ]
+
+        if env_ids is None:
+            self.last_joint_targets = current_arm.clone()
+            return
+
+        env_ids = torch.as_tensor(
+            env_ids,
+            dtype=torch.long,
+            device=self.env.device,
+        )
+
+        if env_ids.numel() == 0:
+            return
+
+        self.last_joint_targets[env_ids] = current_arm[env_ids]
 
     def _prepare_action(self, action: torch.Tensor) -> torch.Tensor:
         """Validate and normalize the incoming RL action shape."""
