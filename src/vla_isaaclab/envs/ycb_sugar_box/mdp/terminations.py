@@ -361,7 +361,7 @@ def task_success(
 def grasp_success(
     env: ManagerBasedRLEnv,
     min_contact_force: float = 0.5,
-    hold_steps: int = 90,
+    hold_steps: int = 30,
 ) -> torch.Tensor:
     """Success when a physical three-finger Dex3 grasp is held."""
     contacts = dex3_grasp_contacts(
