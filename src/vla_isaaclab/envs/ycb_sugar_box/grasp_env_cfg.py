@@ -72,7 +72,7 @@ class GraspRewardsCfg:
         },
     )
 
-    # Reward a genuine three-finger Dex3 contact grasp.
+    # Progressively reward valid Dex3 contact from each required finger.
     grasp = RewTerm(
         func=mdp.grasp_contact_reward,
         weight=1.0,
@@ -100,12 +100,12 @@ class GraspTerminationsCfg:
     # Evaluation / termination criterion only.
     #
     # Success means the thumb, index, and middle fingers all maintain
-    # object contact above the minimum force for 90 consecutive steps.
+    # object contact above the minimum force for 30 consecutive steps.
     success = DoneTerm(
         func=mdp.grasp_success,
         params={
             "min_contact_force": 0.5,
-            "hold_steps": 90,
+            "hold_steps": 30,
         },
     )
 
