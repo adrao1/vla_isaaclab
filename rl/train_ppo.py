@@ -137,8 +137,8 @@ def parse_args():
         type=int,
         default=0,
         help=(
-            "Record env 0's actual PPO rollout every N iterations. "
-            "Use 0 to disable periodic videos."
+            "Run and record a clean deterministic evaluation episode "
+            "every N PPO iterations. Use 0 to disable evaluation videos."
         ),
     )
 
@@ -146,7 +146,7 @@ def parse_args():
         "--video-fps",
         type=int,
         default=30,
-        help="Frame rate for periodic PPO rollout videos.",
+        help="Frame rate for deterministic evaluation videos.",
     )
 
     AppLauncher.add_app_launcher_args(parser)
@@ -160,7 +160,7 @@ def parse_args():
         parser.error("--video-fps must be > 0")
 
     # State-based PPO does not consume RGB observations. Cameras are enabled
-    # only when periodic rollout videos are explicitly requested.
+    # only when deterministic evaluation videos are explicitly requested.
     args.enable_cameras = args.video_every > 0
 
     return args
@@ -336,6 +336,37 @@ class Agent(nn.Module):
     ):
         return self.critic(x)
 
+    def get_action(
+        self,
+        x: torch.Tensor,
+        deterministic: bool = False,
+    ):
+        """Return either the actor mean or a sampled Gaussian action."""
+
+        action_mean = self.actor_mean(
+            x
+        )
+
+        if deterministic:
+            return action_mean
+
+        action_logstd = (
+            self.actor_logstd.expand_as(
+                action_mean
+            )
+        )
+
+        action_std = torch.exp(
+            action_logstd
+        )
+
+        probs = Normal(
+            action_mean,
+            action_std,
+        )
+
+        return probs.sample()
+
     def get_action_and_value(
         self,
         x: torch.Tensor,
@@ -426,12 +457,13 @@ class RolloutVideoRecorder:
             import av
         except ImportError as exc:
             raise RuntimeError(
-                "Periodic video recording requires PyAV. "
+                "Evaluation video recording requires PyAV. "
                 "The repo's preview-video path also uses the 'av' package."
             ) from exc
 
         self.av = av
         self.path = path
+
         self.path.parent.mkdir(
             parents=True,
             exist_ok=True,
@@ -495,6 +527,180 @@ class RolloutVideoRecorder:
         self.stream = None
 
 
+def record_evaluation_episode(
+    env,
+    controller: EEDeltaController,
+    agent: Agent,
+    path: Path,
+    fps: int,
+    max_steps: int,
+    device: torch.device,
+    seed: int,
+) -> torch.Tensor:
+    """Record one clean deterministic evaluation episode.
+
+    This mirrors the X-Sim evaluation pattern:
+
+        explicit reset
+        -> deterministic current policy
+        -> stop on env-0 termination/truncation or horizon
+        -> fresh reset before returning to PPO training
+
+    The returned observation is the fresh training observation that PPO
+    should continue from.
+    """
+
+    print(
+        f"recording evaluation video: {path}"
+    )
+
+    was_training = agent.training
+    agent.eval()
+
+    # -------------------------------------------------------------
+    # Explicit evaluation reset.
+    # -------------------------------------------------------------
+
+    obs_dict, _ = env.reset(
+        seed=seed
+    )
+
+    controller.reset()
+
+    obs = get_policy_obs(
+        obs_dict
+    ).to(
+        device
+    )
+
+    recorder = RolloutVideoRecorder(
+        path=path,
+        fps=fps,
+    )
+
+    eval_steps = 0
+    eval_done = False
+
+    try:
+        for step in range(
+            max_steps
+        ):
+            # -----------------------------------------------------
+            # Record current state before taking the action.
+            #
+            # Frame 0 is therefore the reset state. We also stop
+            # immediately when env 0 finishes, so an auto-reset
+            # frame is not appended to the end of the clip.
+            # -----------------------------------------------------
+
+            rgb = (
+                env.scene[
+                    "cam_side"
+                ]
+                .data.output[
+                    "rgb"
+                ][
+                    0,
+                    ...,
+                    :3,
+                ]
+                .detach()
+                .cpu()
+                .numpy()
+            )
+
+            recorder.add_rgb(
+                rgb
+            )
+
+            # -----------------------------------------------------
+            # X-Sim evaluation uses deterministic=True: actor mean,
+            # not a Gaussian sample.
+            # -----------------------------------------------------
+
+            with torch.no_grad():
+                action = agent.get_action(
+                    obs,
+                    deterministic=True,
+                )
+
+            executed_action = torch.clamp(
+                action,
+                -1.0,
+                1.0,
+            )
+
+            env_action = controller.compute(
+                executed_action
+            )
+
+            if not torch.isfinite(
+                env_action
+            ).all():
+                raise RuntimeError(
+                    f"Non-finite environment action "
+                    f"during evaluation step {step}"
+                )
+
+            (
+                next_obs_dict,
+                _,
+                terminated,
+                truncated,
+                _,
+            ) = env.step(
+                env_action
+            )
+
+            done_mask = torch.logical_or(
+                terminated,
+                truncated,
+            )
+
+            eval_steps = step + 1
+
+            # Video represents env 0.
+            if bool(
+                done_mask[0].item()
+            ):
+                eval_done = True
+                break
+
+            obs = get_policy_obs(
+                next_obs_dict
+            ).to(
+                device
+            )
+
+    finally:
+        recorder.close()
+
+    print(
+        f"saved evaluation video: {path} "
+        f"steps={eval_steps} "
+        f"done={eval_done}"
+    )
+
+    # -------------------------------------------------------------
+    # Evaluation state must not leak into PPO training.
+    # -------------------------------------------------------------
+
+    train_obs_dict, _ = env.reset()
+
+    controller.reset()
+
+    train_obs = get_policy_obs(
+        train_obs_dict
+    ).to(
+        device
+    )
+
+    if was_training:
+        agent.train()
+
+    return train_obs
+
+
 # =====================================================================
 # Main
 # =====================================================================
@@ -536,7 +742,7 @@ def main():
         num_envs=ARGS.num_envs,
     )
 
-    # PPO itself does not use RGB observations. When periodic videos are
+    # PPO itself does not use RGB observations. When evaluation videos are
     # requested, keep only the external side camera and disable every other
     # RGB camera so recording adds as little rendering overhead as possible.
     video_enabled = (
@@ -925,6 +1131,12 @@ def main():
         diag_distance_sum = 0.0
         diag_closure_sum = 0.0
         diag_lift_sum = 0.0
+
+        diag_thumb_contact_sum = 0.0
+        diag_index_contact_sum = 0.0
+        diag_middle_contact_sum = 0.0
+        diag_grasp_sum = 0.0
+
         diag_samples = 0
 
         diag_min_distance = float("inf")
@@ -959,35 +1171,10 @@ def main():
 
 
         # =============================================================
-        # Collect rollout
+        # Collect stochastic PPO rollout
         # =============================================================
 
         agent.eval()
-
-        record_this_rollout = (
-            video_enabled
-            and iteration
-            % ARGS.video_every
-            == 0
-        )
-
-        video_recorder = None
-
-        if record_this_rollout:
-            video_path = (
-                video_dir
-                / f"iter_{iteration:04d}.mp4"
-            )
-
-            video_recorder = RolloutVideoRecorder(
-                path=video_path,
-                fps=ARGS.video_fps,
-            )
-
-            print(
-                f"recording rollout video: "
-                f"{video_path}"
-            )
 
         rollout_start = time.time()
 
@@ -1034,6 +1221,22 @@ def main():
                         "lift_height"
                     ]
 
+                    thumb_contact = metrics[
+                        "thumb_contact"
+                    ]
+
+                    index_contact = metrics[
+                        "index_contact"
+                    ]
+
+                    middle_contact = metrics[
+                        "middle_contact"
+                    ]
+
+                    is_grasping = metrics[
+                        "is_grasping"
+                    ]
+
                     diag_distance_sum += (
                         distance.sum().item()
                     )
@@ -1044,6 +1247,34 @@ def main():
 
                     diag_lift_sum += (
                         lift.sum().item()
+                    )
+
+                    diag_thumb_contact_sum += (
+                        thumb_contact
+                        .float()
+                        .sum()
+                        .item()
+                    )
+
+                    diag_index_contact_sum += (
+                        index_contact
+                        .float()
+                        .sum()
+                        .item()
+                    )
+
+                    diag_middle_contact_sum += (
+                        middle_contact
+                        .float()
+                        .sum()
+                        .item()
+                    )
+
+                    diag_grasp_sum += (
+                        is_grasping
+                        .float()
+                        .sum()
+                        .item()
                     )
 
                     diag_samples += num_envs
@@ -1068,8 +1299,6 @@ def main():
             # Actor + critic
             #
             # Store the RAW Gaussian sample for PPO.
-            #
-            # This matches X-Sim.
             # ---------------------------------------------------------
 
             with torch.no_grad():
@@ -1081,7 +1310,6 @@ def main():
                 ) = agent.get_action_and_value(
                     next_obs
                 )
-
 
                 values[
                     step
@@ -1099,10 +1327,6 @@ def main():
 
             # ---------------------------------------------------------
             # X-Sim clips the sampled Gaussian action before env.step().
-            #
-            # Our action space is the normalized 7-D EE command:
-            #
-            # [-1, 1]
             # ---------------------------------------------------------
 
             executed_action = torch.clamp(
@@ -1113,13 +1337,7 @@ def main():
 
 
             # ---------------------------------------------------------
-            # Convert:
-            #
-            # 7-D EE action
-            #
-            #       ->
-            #
-            # 43-D Isaac joint action
+            # Convert 7-D EE action -> 43-D Isaac joint action.
             # ---------------------------------------------------------
 
             env_action = (
@@ -1128,10 +1346,6 @@ def main():
                 )
             )
 
-
-            # ---------------------------------------------------------
-            # Sanity check before stepping
-            # ---------------------------------------------------------
 
             if not torch.isfinite(
                 env_action
@@ -1158,31 +1372,25 @@ def main():
 
 
             # ---------------------------------------------------------
-            # Periodic rollout video
+            # Episode reset handling.
             #
-            # This records env 0 from the exact sampled PPO rollout.
-            # It does not replace, resample, or modify the action.
+            # Isaac Lab auto-resets done environments. Reset the
+            # persistent IK target for exactly those envs.
             # ---------------------------------------------------------
 
-            if video_recorder is not None:
-                rgb = (
-                    env.scene[
-                        "cam_side"
-                    ]
-                    .data.output[
-                        "rgb"
-                    ][
-                        0,
-                        ...,
-                        :3,
-                    ]
-                    .detach()
-                    .cpu()
-                    .numpy()
-                )
+            done_mask = torch.logical_or(
+                terminated,
+                truncated,
+            )
 
-                video_recorder.add_rgb(
-                    rgb
+            done_ids = torch.nonzero(
+                done_mask,
+                as_tuple=False,
+            ).squeeze(-1)
+
+            if done_ids.numel() > 0:
+                controller.reset(
+                    done_ids
                 )
 
 
@@ -1203,10 +1411,7 @@ def main():
                 )
 
                 diag_done_episodes += int(
-                    torch.logical_or(
-                        terminated,
-                        truncated,
-                    )
+                    done_mask
                     .sum()
                     .item()
                 )
@@ -1218,11 +1423,7 @@ def main():
 
 
             next_done = (
-                torch.logical_or(
-                    terminated,
-                    truncated,
-                )
-                .float()
+                done_mask.float()
             )
 
 
@@ -1252,14 +1453,6 @@ def main():
                     f"at rollout step {step}"
                 )
 
-
-        if video_recorder is not None:
-            video_recorder.close()
-
-            print(
-                f"saved video: "
-                f"{video_path}"
-            )
 
         rollout_time = (
             time.time()
@@ -1773,12 +1966,6 @@ def main():
         )
 
 
-        iteration_time = (
-            time.time()
-            - iteration_start
-        )
-
-
         # -----------------------------------------------------------------
         # Grasp diagnostics
         # -----------------------------------------------------------------
@@ -1786,6 +1973,12 @@ def main():
         mean_hand_distance = 0.0
         mean_closure = 0.0
         mean_lift = 0.0
+
+        thumb_contact_rate = 0.0
+        index_contact_rate = 0.0
+        middle_contact_rate = 0.0
+        grasp_rate = 0.0
+
         success_rate = 0.0
 
 
@@ -1805,6 +1998,26 @@ def main():
 
             mean_lift = (
                 diag_lift_sum
+                / diag_samples
+            )
+
+            thumb_contact_rate = (
+                diag_thumb_contact_sum
+                / diag_samples
+            )
+
+            index_contact_rate = (
+                diag_index_contact_sum
+                / diag_samples
+            )
+
+            middle_contact_rate = (
+                diag_middle_contact_sum
+                / diag_samples
+            )
+
+            grasp_rate = (
+                diag_grasp_sum
                 / diag_samples
             )
 
@@ -1842,6 +2055,10 @@ def main():
                 f"closure_max={diag_max_closure:.4f} "
                 f"lift_mean={mean_lift:.4f} "
                 f"lift_max={diag_max_lift:.4f} "
+                f"thumb={thumb_contact_rate:.3f} "
+                f"index={index_contact_rate:.3f} "
+                f"middle={middle_contact_rate:.3f} "
+                f"grasp_rate={grasp_rate:.3f} "
                 f"successes={diag_successes} "
                 f"episodes={diag_done_episodes} "
                 f"success_rate={success_rate:.3f}"
@@ -1938,12 +2155,6 @@ def main():
                 global_step,
             )
 
-            writer.add_scalar(
-                "time/iteration_time",
-                iteration_time,
-                global_step,
-            )
-
 
             if is_grasp_task:
 
@@ -1984,6 +2195,30 @@ def main():
                 )
 
                 writer.add_scalar(
+                    "grasp/thumb_contact_rate",
+                    thumb_contact_rate,
+                    global_step,
+                )
+
+                writer.add_scalar(
+                    "grasp/index_contact_rate",
+                    index_contact_rate,
+                    global_step,
+                )
+
+                writer.add_scalar(
+                    "grasp/middle_contact_rate",
+                    middle_contact_rate,
+                    global_step,
+                )
+
+                writer.add_scalar(
+                    "grasp/grasp_rate",
+                    grasp_rate,
+                    global_step,
+                )
+
+                writer.add_scalar(
                     "grasp/successes",
                     diag_successes,
                     global_step,
@@ -1994,6 +2229,52 @@ def main():
                     success_rate,
                     global_step,
                 )
+
+
+        # =================================================================
+        # X-Sim-style deterministic evaluation video
+        # =================================================================
+
+        if (
+            video_enabled
+            and iteration
+            % ARGS.video_every
+            == 0
+        ):
+            video_path = (
+                video_dir
+                / f"iter_{iteration:04d}.mp4"
+            )
+
+            next_obs = record_evaluation_episode(
+                env=env,
+                controller=controller,
+                agent=agent,
+                path=video_path,
+                fps=ARGS.video_fps,
+                max_steps=ARGS.num_steps,
+                device=device,
+                seed=ARGS.seed,
+            )
+
+            next_done = torch.zeros(
+                num_envs,
+                dtype=torch.float32,
+                device=device,
+            )
+
+
+        iteration_time = (
+            time.time()
+            - iteration_start
+        )
+
+        if writer is not None:
+            writer.add_scalar(
+                "time/iteration_time",
+                iteration_time,
+                global_step,
+            )
 
 
         # =================================================================
