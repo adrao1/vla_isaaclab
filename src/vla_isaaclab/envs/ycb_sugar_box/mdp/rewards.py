@@ -65,15 +65,40 @@ def grasp_contact_reward(
     env: ManagerBasedRLEnv,
     min_force: float = 0.5,
 ) -> torch.Tensor:
-    """Reward simultaneous sugar-box contact by all three Dex3 fingers."""
+    """Reward progressive Dex3 finger contact with the sugar box.
+
+    Each required finger contributes one third of the reward:
+
+        no valid contacts -> 0.0
+        one finger        -> 1/3
+        two fingers       -> 2/3
+        all three fingers -> 1.0
+
+    This provides a denser learning signal while keeping the true grasp
+    success condition separate and unchanged.
+    """
     contacts = dex3_grasp_contacts(
         env,
         min_force=min_force,
     )
 
-    return contacts[
-        "is_grasping"
+    thumb_contact = contacts[
+        "thumb_contact"
     ].float()
+
+    index_contact = contacts[
+        "index_contact"
+    ].float()
+
+    middle_contact = contacts[
+        "middle_contact"
+    ].float()
+
+    return (
+        thumb_contact
+        + index_contact
+        + middle_contact
+    ) / 3.0
 
 
 def grasp_lift_reward(
@@ -96,9 +121,9 @@ def grasp_lift_reward(
         max=1.0,
     )
 
-    # Keep the existing closure-based shaping here for this first
-    # contact-reward experiment. Actual grasp validity is handled by
-    # grasp_contact_reward() and grasp_success().
+    # Keep the existing closure-based shaping here for compatibility with
+    # experiments that still use this reward term. The current grasp-only
+    # task does not need to activate this reward.
     return (
         lift_progress
         * metrics["closure_fraction"]
