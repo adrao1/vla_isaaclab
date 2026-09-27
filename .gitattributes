@@ -3,3 +3,4 @@ assets/xsim/**/*.png filter=lfs diff=lfs merge=lfs -text
 assets/xsim/**/*.jpg filter=lfs diff=lfs merge=lfs -text
 assets/xsim/**/*.ply filter=lfs diff=lfs merge=lfs -text
 assets/xsim/**/*.npy filter=lfs diff=lfs merge=lfs -text
+assets/xsim/**/*.usd filter=lfs diff=lfs merge=lfs -text
