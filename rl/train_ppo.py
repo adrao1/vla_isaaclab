@@ -840,6 +840,9 @@ def main():
         device
     )
 
+    from timeout_bootstrap import install_timeout_bootstrap
+    install_timeout_bootstrap(env, agent, ARGS.gamma)
+
     optimizer = torch.optim.Adam(
         agent.parameters(),
         lr=ARGS.learning_rate,
@@ -1006,7 +1009,7 @@ def main():
     # -----------------------------------------------------------------
 
     is_grasp_task = (
-        ARGS.task == GRASP_TASK
+        ARGS.task in (GRASP_TASK, "VLA-YCBSugarBox-G1-GuidedGrasp-v0")
     )
 
     initial_box_height = (

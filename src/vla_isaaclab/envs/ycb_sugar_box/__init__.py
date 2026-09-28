@@ -35,3 +35,16 @@ __all__ = [
     "ENV_ID",
     "GRASP_ENV_ID",
 ]
+
+
+GUIDED_GRASP_ENV_ID = "VLA-YCBSugarBox-G1-GuidedGrasp-v0"
+if GUIDED_GRASP_ENV_ID not in gym.registry:
+    gym.register(
+        id=GUIDED_GRASP_ENV_ID,
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        kwargs={
+            "env_cfg_entry_point":
+                f"{__name__}.guided_grasp_env_cfg:GuidedGraspEnvCfg"
+        },
+        disable_env_checker=True,
+    )
