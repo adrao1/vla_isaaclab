@@ -48,3 +48,7 @@ if GUIDED_GRASP_ENV_ID not in gym.registry:
         },
         disable_env_checker=True,
     )
+
+WAYPOINT_ENV_ID = 'VLA-YCBSugarBox-G1-Waypoint-v0'
+if WAYPOINT_ENV_ID not in gym.registry:
+    gym.register(id=WAYPOINT_ENV_ID, entry_point='isaaclab.envs:ManagerBasedRLEnv', kwargs={'env_cfg_entry_point': f'{__name__}.waypoint_env_cfg:WaypointEnvCfg'}, disable_env_checker=True)

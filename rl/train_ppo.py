@@ -149,6 +149,8 @@ def parse_args():
         help="Frame rate for deterministic evaluation videos.",
     )
 
+    parser.add_argument("--checkpoint", type=Path, help="Load policy weights; start a fresh optimizer and run counters.")
+
     AppLauncher.add_app_launcher_args(parser)
 
     args = parser.parse_args()
@@ -203,6 +205,8 @@ import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
 
+from ppo_components import Agent, RolloutVideoRecorder, load_agent_checkpoint
+
 import vla_isaaclab  # noqa: F401
 
 from isaaclab_tasks.utils import parse_env_cfg
@@ -231,173 +235,8 @@ GRASP_TASK = "VLA-YCBSugarBox-G1-Grasp-v0"
 # =====================================================================
 
 
-def layer_init(
-    layer: nn.Module,
-    std: float = np.sqrt(2),
-    bias_const: float = 0.0,
-):
-    """X-Sim / CleanRL-style orthogonal initialization."""
-    torch.nn.init.orthogonal_(
-        layer.weight,
-        std,
-    )
-
-    torch.nn.init.constant_(
-        layer.bias,
-        bias_const,
-    )
-
-    return layer
 
 
-class Agent(nn.Module):
-    """X-Sim-style PPO actor/critic."""
-
-    def __init__(
-        self,
-        obs_dim: int,
-        action_dim: int,
-    ):
-        super().__init__()
-
-        self.critic = nn.Sequential(
-            layer_init(
-                nn.Linear(
-                    obs_dim,
-                    256,
-                )
-            ),
-            nn.Tanh(),
-            layer_init(
-                nn.Linear(
-                    256,
-                    256,
-                )
-            ),
-            nn.Tanh(),
-            layer_init(
-                nn.Linear(
-                    256,
-                    256,
-                )
-            ),
-            nn.Tanh(),
-            layer_init(
-                nn.Linear(
-                    256,
-                    1,
-                )
-            ),
-        )
-
-        self.actor_mean = nn.Sequential(
-            layer_init(
-                nn.Linear(
-                    obs_dim,
-                    256,
-                )
-            ),
-            nn.Tanh(),
-            layer_init(
-                nn.Linear(
-                    256,
-                    256,
-                )
-            ),
-            nn.Tanh(),
-            layer_init(
-                nn.Linear(
-                    256,
-                    256,
-                )
-            ),
-            nn.Tanh(),
-            layer_init(
-                nn.Linear(
-                    256,
-                    action_dim,
-                ),
-                std=0.01 * np.sqrt(2),
-            ),
-        )
-
-        # X-Sim initializes log std to -0.5.
-        self.actor_logstd = nn.Parameter(
-            torch.ones(
-                1,
-                action_dim,
-            )
-            * -0.5
-        )
-
-    def get_value(
-        self,
-        x: torch.Tensor,
-    ):
-        return self.critic(x)
-
-    def get_action(
-        self,
-        x: torch.Tensor,
-        deterministic: bool = False,
-    ):
-        """Return either the actor mean or a sampled Gaussian action."""
-
-        action_mean = self.actor_mean(
-            x
-        )
-
-        if deterministic:
-            return action_mean
-
-        action_logstd = (
-            self.actor_logstd.expand_as(
-                action_mean
-            )
-        )
-
-        action_std = torch.exp(
-            action_logstd
-        )
-
-        probs = Normal(
-            action_mean,
-            action_std,
-        )
-
-        return probs.sample()
-
-    def get_action_and_value(
-        self,
-        x: torch.Tensor,
-        action: torch.Tensor | None = None,
-    ):
-        action_mean = self.actor_mean(x)
-
-        action_logstd = (
-            self.actor_logstd.expand_as(
-                action_mean
-            )
-        )
-
-        action_std = torch.exp(
-            action_logstd
-        )
-
-        probs = Normal(
-            action_mean,
-            action_std,
-        )
-
-        if action is None:
-            action = probs.sample()
-
-        return (
-            action,
-            probs.log_prob(action).sum(1),
-            probs.entropy().sum(1),
-            self.critic(x),
-        )
 
 
 # =====================================================================
@@ -445,86 +284,6 @@ def make_writer(
     )
 
 
-class RolloutVideoRecorder:
-    """Encode RGB frames to H.264 using the repo's existing PyAV pattern."""
-
-    def __init__(
-        self,
-        path: Path,
-        fps: int,
-    ):
-        try:
-            import av
-        except ImportError as exc:
-            raise RuntimeError(
-                "Evaluation video recording requires PyAV. "
-                "The repo's preview-video path also uses the 'av' package."
-            ) from exc
-
-        self.av = av
-        self.path = path
-
-        self.path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        self.container = av.open(
-            str(self.path),
-            mode="w",
-        )
-
-        self.stream = None
-        self.fps = fps
-
-    def add_rgb(
-        self,
-        rgb: np.ndarray,
-    ):
-        """Append one uint8 RGB frame."""
-
-        if rgb.dtype != np.uint8:
-            rgb = rgb.astype(
-                np.uint8
-            )
-
-        if self.stream is None:
-            height, width = rgb.shape[:2]
-
-            self.stream = self.container.add_stream(
-                "libx264",
-                rate=self.fps,
-            )
-
-            self.stream.width = width
-            self.stream.height = height
-            self.stream.pix_fmt = "yuv420p"
-
-        frame = self.av.VideoFrame.from_ndarray(
-            rgb,
-            format="rgb24",
-        )
-
-        for packet in self.stream.encode(
-            frame
-        ):
-            self.container.mux(
-                packet
-            )
-
-    def close(self):
-        if self.container is None:
-            return
-
-        if self.stream is not None:
-            for packet in self.stream.encode():
-                self.container.mux(
-                    packet
-                )
-
-        self.container.close()
-        self.container = None
-        self.stream = None
 
 
 def record_evaluation_episode(
@@ -742,6 +501,8 @@ def main():
         num_envs=ARGS.num_envs,
     )
 
+    cfg.seed = ARGS.seed
+
     # PPO itself does not use RGB observations. When evaluation videos are
     # requested, keep only the external side camera and disable every other
     # RGB camera so recording adds as little rendering overhead as possible.
@@ -842,6 +603,11 @@ def main():
 
     from timeout_bootstrap import install_timeout_bootstrap
     install_timeout_bootstrap(env, agent, ARGS.gamma)
+
+    if ARGS.checkpoint is not None:
+        metadata = load_agent_checkpoint(agent, ARGS.checkpoint, device)
+        print(f"Loaded policy weights from {ARGS.checkpoint}: {metadata}", flush=True)
+        print("Starting a fresh optimizer and run counters.", flush=True)
 
     optimizer = torch.optim.Adam(
         agent.parameters(),
@@ -1009,7 +775,7 @@ def main():
     # -----------------------------------------------------------------
 
     is_grasp_task = (
-        ARGS.task in (GRASP_TASK, "VLA-YCBSugarBox-G1-GuidedGrasp-v0")
+        ARGS.task in (GRASP_TASK, "VLA-YCBSugarBox-G1-GuidedGrasp-v0", "VLA-YCBSugarBox-G1-Waypoint-v0")
     )
 
     initial_box_height = (
@@ -1140,6 +906,7 @@ def main():
         diag_middle_contact_sum = 0.0
         diag_grasp_sum = 0.0
 
+        stage_counts = torch.zeros(5, dtype=torch.long, device=device)
         diag_samples = 0
 
         diag_min_distance = float("inf")
@@ -1187,6 +954,9 @@ def main():
         ):
             global_step += num_envs
 
+
+            if ARGS.task == 'VLA-YCBSugarBox-G1-Waypoint-v0':
+                stage_counts += torch.bincount(env.command_manager.get_term('target_pose').stage, minlength=5)
 
             observations[
                 step
@@ -2049,6 +1819,9 @@ def main():
         )
 
 
+        if ARGS.task == 'VLA-YCBSugarBox-G1-Waypoint-v0':
+            print('    waypoint stage sample counts [lift, transfer, lower, release, done]:', stage_counts.tolist())
+
         if is_grasp_task:
             print(
                 "    grasp: "
@@ -2303,7 +2076,7 @@ def main():
                     "global_step": global_step,
                     "agent": agent.state_dict(),
                     "optimizer": optimizer.state_dict(),
-                    "args": vars(ARGS),
+                    "args": {k: str(v) if isinstance(v, Path) else v for k, v in vars(ARGS).items()},
                 },
                 checkpoint_path,
             )
@@ -2331,7 +2104,7 @@ def main():
             "global_step": global_step,
             "agent": agent.state_dict(),
             "optimizer": optimizer.state_dict(),
-            "args": vars(ARGS),
+            "args": {k: str(v) if isinstance(v, Path) else v for k, v in vars(ARGS).items()},
         },
         final_path,
     )
