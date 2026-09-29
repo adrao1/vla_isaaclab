@@ -15,6 +15,13 @@ G1 adaptations (not X-Sim):
   * tripod grasp: thumb AND (index OR middle); opening directions from pad
     positions; finger force = sum of filtered forces over that finger's links
   * static joints = every robot joint except the left Dex3 hand joints
+
+Orientation term (X-Sim rotation_reward option, off by default):
+  * waypoint reward += 1 - tanh(scale * angle), scale = clamp(1/(angle between
+    consecutive waypoints + 1e-6), max=10) = 10 here (all waypoints share the
+    start orientation); advancing also requires angle < angle_goal_thresh
+  * deviation: angle is the shortest rotation angle (uses |q1.q2|); X-Sim's
+    quaternion_angle uses 2*acos(w_diff) without abs, which gives ~2*pi for q vs -q
 """
 
 import math
@@ -160,6 +167,8 @@ def xsim_dense_reward(
     min_force: float = 0.5,
     max_angle_deg: float = 85.0,
     require_grasp: bool = True,
+    rotation_reward: bool = False,
+    angle_goal_thresh: float = 0.3,
 ) -> torch.Tensor:
     """Per-step X-Sim dense reward (unnormalized, as X-Sim trains with reward_mode='dense')."""
     st = _state(env)
@@ -189,8 +198,16 @@ def xsim_dense_reward(
     idx = st["idx"]
     dist_cur = torch.linalg.vector_norm(wps[ar, idx] - obj_pos, dim=-1)
     wp_track = 1 - torch.tanh(scales[idx] * dist_cur)
-    wp_total = wp_track + 2 * idx.float()
+    wp_angle = _quat_angle(start_quat, obj_quat)
+    angle_scale = min(1.0 / (0.0 + 1e-6), 10.0)
+    angle_reward = 1 - torch.tanh(angle_scale * wp_angle)
     reached = dist_cur < goal_thresh
+    if rotation_reward:
+        wp_track = wp_track + angle_reward
+        reached = reached & (wp_angle < angle_goal_thresh)
+    else:
+        angle_reward = torch.zeros_like(angle_reward)
+    wp_total = wp_track + 2 * idx.float()
     st["idx"] = torch.clamp(idx + reached.long(), 0, wps.shape[1] - 1)
 
     # 3. static (only when placed & rotated)
@@ -206,6 +223,7 @@ def xsim_dense_reward(
         "wp_idx_before": idx, "wp_dist": dist_cur, "wp_track": wp_track,
         "lift": obj_pos[:, 2] - start[:, 2], "placed": placed, "rotated": rotated,
         "is_static": is_static, "static_reward": static_r, "success": success, "total": total,
+        "wp_angle": wp_angle, "angle_reward": angle_reward, "toppled": wp_angle > 0.7854,
     }
     return total
 

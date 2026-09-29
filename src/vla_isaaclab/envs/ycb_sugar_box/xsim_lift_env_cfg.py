@@ -107,3 +107,17 @@ class XSimLiftEnvCfg(YCBSugarBoxEnvCfg):
         self.scene.robot.init_state.joint_pos.update(XSIM_HAND_OPEN_JOINT_POS)
         self.events.reset_xsim_state = EventTerm(func=xsim_mdp.reset_xsim_state, mode="reset")
         self.rewards.xsim.weight = 1.0 / (self.sim.dt * self.decimation)
+
+
+@configclass
+class XSimLiftRotEnvCfg(XSimLiftEnvCfg):
+    """XSimLift with X-Sim's waypoint orientation reward turned on.
+
+    rotation_reward=True is used by all five X-Sim tasks (metadata.npz).
+    angle_goal_thresh = 0.3 rad matches X-Sim's Mustard-Place metadata.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.xsim.params["rotation_reward"] = True
+        self.rewards.xsim.params["angle_goal_thresh"] = 0.3
