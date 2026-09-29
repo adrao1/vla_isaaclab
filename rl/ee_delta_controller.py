@@ -429,11 +429,7 @@ class EEDeltaController:
             :, self.arm_action_indices
         ] = arm_targets
 
-        hand_targets = (
-            self.open_hand
-            + gripper_fraction
-            * (self.closed_hand - self.open_hand)
-        )
+        hand_targets = self._hand_targets(action)
 
         targets[
             :, self.hand_action_indices
@@ -480,3 +476,7 @@ class EEDeltaController:
             "ik_damping": self.ik_damping,
             "orientation_weight": self.orientation_weight,
         }
+
+    def _hand_targets(self, action):
+        fraction = (0.5 * (action[:, 6:7] + 1.0)).clamp(0.0, 1.0)
+        return self.open_hand + fraction * (self.closed_hand - self.open_hand)
