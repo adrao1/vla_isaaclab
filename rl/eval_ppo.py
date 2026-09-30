@@ -22,6 +22,8 @@ parser.add_argument('--measure-lift', action='store_true', help='Disable contact
 parser.add_argument('--lift-height', type=float, default=0.05)
 parser.add_argument('--hold-seconds', type=float, default=0.5)
 parser.add_argument('--output', type=Path)
+parser.add_argument('--controller', choices=('auto', 'ee7', 'dex13'), default='auto',
+                    help='auto: infer 13-D vs 7-D from the checkpoint weights')
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.measure_lift and args.task == 'VLA-YCBSugarBox-G1-Waypoint-v0':
@@ -44,7 +46,10 @@ import gymnasium as gym
 import vla_isaaclab
 from isaaclab_tasks.utils import parse_env_cfg
 from ee_delta_controller import EEDeltaController
+from dex_ee_delta_controller import DexEEDeltaController
+from dex_grip_controller import DexGripEEDeltaController
 from ppo_components import Agent, RolloutVideoRecorder, load_agent_checkpoint
+from vla_isaaclab.envs.ycb_sugar_box.mdp import xsim as xsim_mdp
 from vla_isaaclab.envs.ycb_sugar_box.mdp.terminations import dex3_grasp_contacts
 
 
@@ -56,7 +61,8 @@ def main():
     cfg.seed = args.seed
     if args.measure_lift:
         # Measure the existing policy, without rewarding or training it further.
-        cfg.terminations.success = None
+        if hasattr(cfg.terminations, 'success'):
+            cfg.terminations.success = None
         if hasattr(cfg.rewards, 'completion'):
             cfg.rewards.completion = None
     for name in ('camera', 'cam_side', 'cam_left_high', 'cam_left_wrist', 'cam_right_wrist'):
@@ -66,10 +72,25 @@ def main():
     rows = []
     try:
         obs, _ = env.reset(seed=args.seed)
-        agent = Agent(obs_dim=obs['policy'].shape[-1], action_dim=7).to(env.device)
-        metadata = load_agent_checkpoint(agent, args.checkpoint, env.device)
+        dims = {'auto': (13, 7), 'dex13': (13,), 'ee7': (7,)}[args.controller]
+        load_errors = []
+        for action_dim in dims:
+            agent = Agent(obs_dim=obs['policy'].shape[-1], action_dim=action_dim).to(env.device)
+            try:
+                metadata = load_agent_checkpoint(agent, args.checkpoint, env.device)
+                break
+            except Exception as exc:  # shape mismatch -> try the other interface
+                load_errors.append(f'action_dim={action_dim}: {exc}')
+        else:
+            raise RuntimeError('Could not load checkpoint: ' + ' | '.join(load_errors))
         agent.eval()
-        controller = EEDeltaController(env)
+        if action_dim == 13:
+            controller = DexEEDeltaController(env)
+        elif 'Grip' in args.task:
+            controller = DexGripEEDeltaController(env)  # 7-D grip checkpoints: chosen by task name
+        else:
+            controller = EEDeltaController(env)
+        print(f'Loaded checkpoint with action_dim={action_dim} ({type(controller).__name__})', flush=True)
         hold_steps = math.ceil(args.hold_seconds / env.step_dt)
         limit = math.ceil(cfg.episode_length_s / env.step_dt)
         pending = {}
@@ -81,6 +102,8 @@ def main():
                 'waypoint_stage': int(env.command_manager.get_term('target_pose').stage[0]) if args.task == 'VLA-YCBSugarBox-G1-Waypoint-v0' else None,
                 'height': float(obj.data.root_pos_w[0, 2]),
                 'contact': bool(dex3_grasp_contacts(env, min_force=0.5)['is_grasping'][0]),
+                'xsim_grasp': bool(xsim_mdp.xsim_grasp_flags(env)['is_grasped'][0]) if hasattr(env, '_xsim_state') else None,
+                'xsim_success': bool(env._xsim_state['metrics']['success'][0]) if getattr(env, '_xsim_state', {}).get('metrics') else None,
                 'terms': {name: bool(env.termination_manager.get_term(name)[0])
                           for name in env.termination_manager.active_terms},
             }
@@ -94,6 +117,7 @@ def main():
         report = {
             'checkpoint': str(args.checkpoint), 'checkpoint_metadata': metadata,
             'task': args.task, 'deterministic_actor': True,
+            'action_dim': action_dim, 'controller': type(controller).__name__,
             'mode': 'lift_probe' if args.measure_lift else 'original_task',
             'lift_threshold_m': args.lift_height, 'hold_steps': hold_steps,
             'control_dt': env.step_dt,
@@ -111,6 +135,10 @@ def main():
             held = 0
             max_held = 0
             lift_pass = False
+            xsim_held = 0
+            xsim_max_held = 0
+            xsim_lift_pass = False
+            xsim_success_ever = False
             recorder = RolloutVideoRecorder(output / f'episode_{episode:03d}.mp4', round(1 / env.step_dt)) if args.video else None
             terms = {}
             try:
@@ -134,6 +162,11 @@ def main():
                     held = held + 1 if rise >= args.lift_height and state['contact'] else 0
                     max_held = max(max_held, held)
                     lift_pass = lift_pass or held >= hold_steps
+                    if state.get('xsim_grasp') is not None:
+                        xsim_held = xsim_held + 1 if rise >= args.lift_height and state['xsim_grasp'] else 0
+                        xsim_max_held = max(xsim_max_held, xsim_held)
+                        xsim_lift_pass = xsim_lift_pass or xsim_held >= hold_steps
+                        xsim_success_ever = xsim_success_ever or bool(state['xsim_success'])
                     terms = state['terms']
                     if bool(terminated[0]) or bool(truncated[0]) or (args.measure_lift and lift_pass):
                         break
@@ -147,16 +180,21 @@ def main():
                 'max_rise_m': max_height, 'max_hold_seconds': max_held * env.step_dt,
                 'termination_terms': terms,
                 'waypoint_stage': state['waypoint_stage'],
+                'xsim_lift_hold_success': xsim_lift_pass,
+                'xsim_max_hold_seconds': xsim_max_held * env.step_dt,
+                'xsim_success_ever': xsim_success_ever,
             }
             rows.append(row)
             report['named_success_rate'] = sum(r['named_success'] for r in rows) / len(rows)
             report['lift_hold_success_rate'] = sum(r['lift_hold_success'] for r in rows) / len(rows)
+            report['xsim_lift_hold_success_rate'] = sum(r['xsim_lift_hold_success'] for r in rows) / len(rows)
             temporary = output / 'results.tmp'
             temporary.write_text(json.dumps(report, indent=2))
             temporary.replace(output / 'results.json')
             print(json.dumps(row), flush=True)
         print(f"Results: {output / 'results.json'}", flush=True)
-        print(f"Named success: {report['named_success_rate']:.1%}; lift-and-hold: {report['lift_hold_success_rate']:.1%}")
+        print(f"Named success: {report['named_success_rate']:.1%}; lift-and-hold: {report['lift_hold_success_rate']:.1%}; "
+              f"lift-and-hold (X-Sim tripod grasp): {report['xsim_lift_hold_success_rate']:.1%}")
     finally:
         env.close()
 

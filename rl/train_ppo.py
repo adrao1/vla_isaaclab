@@ -150,6 +150,7 @@ def parse_args():
     )
 
     parser.add_argument("--checkpoint", type=Path, help="Load policy weights; start a fresh optimizer and run counters.")
+    parser.add_argument("--controller", choices=("ee7", "dex13", "grip7"), default="ee7", help="ee7: original 7-D EE+gripper; dex13: 6-D EE + 7 finger deltas.")
 
     AppLauncher.add_app_launcher_args(parser)
 
@@ -212,6 +213,9 @@ import vla_isaaclab  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
 from ee_delta_controller import EEDeltaController
+from dex_ee_delta_controller import DexEEDeltaController
+from dex_grip_controller import DexGripEEDeltaController
+from xsim_stats import XSimRolloutStats
 
 from vla_isaaclab.envs.common import (
     LEFT_END_EFFECTOR,
@@ -576,16 +580,21 @@ def main():
     # Our RL interface is:
     #
     # [dx, dy, dz, droll, dpitch, dyaw, gripper]
-    action_dim = 7
+    action_dim = 13 if ARGS.controller == "dex13" else 7
+    if "XSimLift" in ARGS.task and ARGS.controller not in ("dex13", "grip7"):
+        raise SystemExit("XSimLift tasks require --controller dex13 or grip7")
 
 
     # -----------------------------------------------------------------
     # Controller
     # -----------------------------------------------------------------
 
-    controller = EEDeltaController(
+    controller = (
+        {"dex13": DexEEDeltaController, "grip7": DexGripEEDeltaController}.get(ARGS.controller, EEDeltaController)
+    )(
         env
     )
+    xsim_stats = XSimRolloutStats() if "XSimLift" in ARGS.task else None
 
     controller.reset()
 
@@ -1165,6 +1174,11 @@ def main():
                 controller.reset(
                     done_ids
                 )
+
+            if xsim_stats is not None:
+                xsim_stats.add(env)
+                if step == ARGS.num_steps - 1:
+                    print(xsim_stats.report_line(), flush=True)
 
 
             # ---------------------------------------------------------

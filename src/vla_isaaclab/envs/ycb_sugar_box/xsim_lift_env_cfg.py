@@ -121,3 +121,24 @@ class XSimLiftRotEnvCfg(XSimLiftEnvCfg):
         super().__post_init__()
         self.rewards.xsim.params["rotation_reward"] = True
         self.rewards.xsim.params["angle_goal_thresh"] = 0.3
+
+
+# G1 adaptation (not X-Sim): X-Sim's Panda gripper is force-limited (100 N).
+# Without a cap, absolute Dex3 grip targets squeeze with hundreds of newtons
+# and throw the box (rl/probe_policy_close.py). Cap hand joint torque and
+# lower damping so the fingers still close quickly under the cap.
+HAND_EFFORT_CAP_NM = 2.0
+HAND_DAMPING = 0.5
+
+
+@configclass
+class XSimLiftGripEnvCfg(XSimLiftRotEnvCfg):
+    """XSimLiftRot with a force-capped Dex3 hand, for the 7-D grip controller."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        hands = self.scene.robot.actuators["hands"]
+        hands.effort_limit = HAND_EFFORT_CAP_NM
+        if hasattr(hands, "effort_limit_sim"):
+            hands.effort_limit_sim = HAND_EFFORT_CAP_NM
+        hands.damping = HAND_DAMPING
