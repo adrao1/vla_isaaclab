@@ -133,7 +133,7 @@ def lower_reward(env):
     z_err = (pos[:, 2] - cmd.destination[2]).abs()
     xy_err = torch.linalg.vector_norm(pos[:, :2] - cmd.destination[:2], dim=-1)
     return (cmd.stage == 3).float() * contacts['is_grasping'].float() * (
-        1 - torch.tanh(z_err / 0.05)
+        1 - torch.tanh(z_err / 0.20)
     ) * (1 - torch.tanh(xy_err / 0.04)) * (1 - torch.tanh(angle))
 
 def release_reward(env):
