@@ -264,4 +264,5 @@ def load_agent_checkpoint(agent, path, device):
         "iteration": checkpoint.get("iteration"),
         "global_step": checkpoint.get("global_step"),
         "source_task": checkpoint.get("args", {}).get("task"),
+        "source_controller": checkpoint.get("args", {}).get("controller"),
     }

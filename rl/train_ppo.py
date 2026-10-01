@@ -581,8 +581,8 @@ def main():
     #
     # [dx, dy, dz, droll, dpitch, dyaw, gripper]
     action_dim = 13 if ARGS.controller == "dex13" else 7
-    if "XSimLift" in ARGS.task and ARGS.controller not in ("dex13", "grip7"):
-        raise SystemExit("XSimLift tasks require --controller dex13 or grip7")
+    if ("XSimLift" in ARGS.task or "GuidedComputed" in ARGS.task) and ARGS.controller not in ("dex13", "grip7"):
+        raise SystemExit("XSimLift / GuidedComputed tasks require --controller dex13 or grip7")
 
 
     # -----------------------------------------------------------------
@@ -594,7 +594,7 @@ def main():
     )(
         env
     )
-    xsim_stats = XSimRolloutStats() if "XSimLift" in ARGS.task else None
+    xsim_stats = XSimRolloutStats() if ("XSimLift" in ARGS.task or "GuidedComputed" in ARGS.task) else None
 
     controller.reset()
 

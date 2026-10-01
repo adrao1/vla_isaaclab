@@ -22,8 +22,9 @@ parser.add_argument('--measure-lift', action='store_true', help='Disable contact
 parser.add_argument('--lift-height', type=float, default=0.05)
 parser.add_argument('--hold-seconds', type=float, default=0.5)
 parser.add_argument('--output', type=Path)
-parser.add_argument('--controller', choices=('auto', 'ee7', 'dex13'), default='auto',
-                    help='auto: infer 13-D vs 7-D from the checkpoint weights')
+parser.add_argument('--controller', choices=('auto', 'ee7', 'dex13', 'grip7'), default='auto',
+                    help='auto: infer 13-D vs 7-D from the checkpoint; 7-D uses grip7 if the '
+                         'checkpoint or task says so (Grip / GuidedComputed), else ee7')
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.measure_lift and args.task == 'VLA-YCBSugarBox-G1-Waypoint-v0':
@@ -72,7 +73,7 @@ def main():
     rows = []
     try:
         obs, _ = env.reset(seed=args.seed)
-        dims = {'auto': (13, 7), 'dex13': (13,), 'ee7': (7,)}[args.controller]
+        dims = {'auto': (13, 7), 'dex13': (13,), 'ee7': (7,), 'grip7': (7,)}[args.controller]
         load_errors = []
         for action_dim in dims:
             agent = Agent(obs_dim=obs['policy'].shape[-1], action_dim=action_dim).to(env.device)
@@ -86,10 +87,15 @@ def main():
         agent.eval()
         if action_dim == 13:
             controller = DexEEDeltaController(env)
-        elif 'Grip' in args.task:
-            controller = DexGripEEDeltaController(env)  # 7-D grip checkpoints: chosen by task name
         else:
-            controller = EEDeltaController(env)
+            saved = metadata.get('source_controller')
+            use_grip = (
+                args.controller == 'grip7'
+                or saved == 'grip7'
+                or 'Grip' in args.task
+                or 'GuidedComputed' in args.task
+            )
+            controller = DexGripEEDeltaController(env) if use_grip else EEDeltaController(env)
         print(f'Loaded checkpoint with action_dim={action_dim} ({type(controller).__name__})', flush=True)
         hold_steps = math.ceil(args.hold_seconds / env.step_dt)
         limit = math.ceil(cfg.episode_length_s / env.step_dt)
