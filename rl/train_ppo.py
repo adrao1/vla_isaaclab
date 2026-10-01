@@ -577,13 +577,7 @@ def main():
         next_obs.shape[-1]
     )
 
-    # Our RL interface is:
-    #
-    # [dx, dy, dz, droll, dpitch, dyaw, gripper]
     action_dim = 13 if ARGS.controller == "dex13" else 7
-    if ("XSimLift" in ARGS.task or "GuidedComputed" in ARGS.task) and ARGS.controller not in ("dex13", "grip7"):
-        raise SystemExit("XSimLift / GuidedComputed tasks require --controller dex13 or grip7")
-
 
     # -----------------------------------------------------------------
     # Controller
@@ -594,7 +588,7 @@ def main():
     )(
         env
     )
-    xsim_stats = XSimRolloutStats() if ("XSimLift" in ARGS.task or "GuidedComputed" in ARGS.task) else None
+    xsim_stats = XSimRolloutStats() if getattr(env, "_xsim_state", None) is not None else None
 
     controller.reset()
 

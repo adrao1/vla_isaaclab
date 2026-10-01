@@ -19,6 +19,7 @@ YCB_OBJECTS = {
     'mustard_bottle': ('Axis_Aligned_Physics/006_mustard_bottle.usd', 'x-90'),
     'bowl': ('dinnerware/024_bowl/024_bowl_physics.usd', 'none'),
 }
+OBJECT_NAMES = tuple(YCB_OBJECTS)
 
 
 def upright_quat(kind, yaw_rad):

@@ -23,8 +23,7 @@ parser.add_argument('--lift-height', type=float, default=0.05)
 parser.add_argument('--hold-seconds', type=float, default=0.5)
 parser.add_argument('--output', type=Path)
 parser.add_argument('--controller', choices=('auto', 'ee7', 'dex13', 'grip7'), default='auto',
-                    help='auto: infer 13-D vs 7-D from the checkpoint; 7-D uses grip7 if the '
-                         'checkpoint or task says so (Grip / GuidedComputed), else ee7')
+                    help='auto: 13-D weights -> dex13; 7-D -> checkpoint --controller, else ee7')
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 if args.measure_lift and args.task == 'VLA-YCBSugarBox-G1-Waypoint-v0':
@@ -85,17 +84,12 @@ def main():
         else:
             raise RuntimeError('Could not load checkpoint: ' + ' | '.join(load_errors))
         agent.eval()
-        if action_dim == 13:
+        if action_dim == 13 or args.controller == 'dex13':
             controller = DexEEDeltaController(env)
+        elif args.controller == 'grip7' or metadata.get('source_controller') == 'grip7':
+            controller = DexGripEEDeltaController(env)
         else:
-            saved = metadata.get('source_controller')
-            use_grip = (
-                args.controller == 'grip7'
-                or saved == 'grip7'
-                or 'Grip' in args.task
-                or 'GuidedComputed' in args.task
-            )
-            controller = DexGripEEDeltaController(env) if use_grip else EEDeltaController(env)
+            controller = EEDeltaController(env)
         print(f'Loaded checkpoint with action_dim={action_dim} ({type(controller).__name__})', flush=True)
         hold_steps = math.ceil(args.hold_seconds / env.step_dt)
         limit = math.ceil(cfg.episode_length_s / env.step_dt)
