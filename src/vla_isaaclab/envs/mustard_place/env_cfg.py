@@ -11,6 +11,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
 
 from ..common import (
@@ -121,6 +122,16 @@ def _mustard_cfg() -> RigidObjectCfg:
     )
 
 
+def _finger_contact_sensor(link_name: str) -> ContactSensorCfg:
+    return ContactSensorCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/Robot/{link_name}",
+        filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+        update_period=0.0,
+        history_length=0,
+        debug_vis=False,
+    )
+
+
 _DOME_LIGHT, _KEY_LIGHT = light_cfgs()
 
 
@@ -140,13 +151,24 @@ class MustardPlaceSceneCfg(InteractiveSceneCfg):
 
     kitchen = _kitchen_cfg()
 
-    # Keep the robot at the X-Sim robot-frame origin for this first
-    # geometry test. The G1 USD itself expects its fixed root at z=0.74.
-    #
-    # make_g1_cfg's default yaw/orientation is retained initially.
-    robot = make_g1_cfg((0.10, 0.0, 0.1923), orientation_wxyz=(1.0, 0.0, 0.0, 0.0))
+    # Face +Y (same yaw as the sugar-table G1). Stand 35 cm south of the
+    # bottle so the left Dex3 is in front of it, not 50 cm to its right.
+    # The G1 USD itself expects its fixed root at z=0.74; kitchen ground is
+    # at -0.6 m, so z stays 0.1923.
+    robot = make_g1_cfg(
+        (0.5133, -0.6263, 0.1923),
+        orientation_wxyz=(0.70710678, 0.0, 0.0, 0.70710678),
+    )
 
     object = _mustard_cfg()
+
+    thumb_0_contact = _finger_contact_sensor("left_hand_thumb_0_link")
+    thumb_1_contact = _finger_contact_sensor("left_hand_thumb_1_link")
+    thumb_2_contact = _finger_contact_sensor("left_hand_thumb_2_link")
+    index_0_contact = _finger_contact_sensor("left_hand_index_0_link")
+    index_1_contact = _finger_contact_sensor("left_hand_index_1_link")
+    middle_0_contact = _finger_contact_sensor("left_hand_middle_0_link")
+    middle_1_contact = _finger_contact_sensor("left_hand_middle_1_link")
 
     # Reproduce the X-Sim task camera for geometry inspection.
     cam_side = camera_cfg(

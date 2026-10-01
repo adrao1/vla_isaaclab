@@ -25,8 +25,10 @@ import grasp_geometry as G
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--task', default='VLA-YCBSugarBox-G1-XSimLiftGrip-v0')
-parser.add_argument('--object', default='sugar_box', choices=G.OBJECT_NAMES)
+parser.add_argument('--task', default='VLA-YCBSugarBox-G1-XSimLiftGrip-v0',
+                    help='Gym ID whose scene is used for physics validation')
+parser.add_argument('--object', default=None, choices=G.OBJECT_NAMES,
+                    help='mesh to generate candidates from; default is the object already in --task')
 parser.add_argument('--hand-folder', type=Path, default=ROOT / 'outputs/grasp_geometry',
                     help='object-independent hand_closure.npz lives here')
 parser.add_argument('--indices', type=int, nargs='*', default=None,
@@ -61,8 +63,11 @@ args = parser.parse_args()
 args.enable_cameras = args.video
 args.experience = str(ROOT / 'configs' / ('ycb.python.headless.rendering.kit' if args.video
                                           else 'ycb.python.headless.kit'))
-args.out_dir = args.out_dir or (args.hand_folder / 'objects' / args.object)
 app = AppLauncher(args).app
+
+
+def _table_task(task):
+    return 'MustardPlace' not in task
 
 
 def main():
@@ -81,31 +86,47 @@ def main():
     from vla_isaaclab.envs.common import SUPPORT_HEIGHT
     from vla_isaaclab.envs.ycb_sugar_box import env_cfg as sugar_cfg
 
-    rel_usd, orient = G.YCB_OBJECTS[args.object]
-    usd = ROOT / 'assets/YCB' / rel_usd
+    probe = parse_env_cfg(args.task, device=args.device, num_envs=1)
+    usd = Path(probe.scene.object.spawn.usd_path)
+    spawn_pos = tuple(float(x) for x in probe.scene.object.init_state.pos)
+    spawn_rot = tuple(float(x) for x in probe.scene.object.init_state.rot)
+    override_spawn = False
+    if args.object is not None:
+        usd = G.object_usd(ROOT, args.object)
+        if args.object in G.YCB_OBJECTS and _table_task(args.task):
+            orient = G.YCB_OBJECTS[args.object][1]
+            points_tmp = G.load_mesh_points(usd)
+            spawn_rot = G.upright_quat(orient, sugar_cfg.SUGAR_BOX_TABLE_YAW_RAD)
+            rest_z = SUPPORT_HEIGHT - (points_tmp @ G.quat_to_matrix(spawn_rot).T)[:, 2].min()
+            spawn_pos = (*sugar_cfg.INITIAL_XY, float(rest_z))
+            override_spawn = True
+    object_name = args.object or usd.stem
+    args.out_dir = args.out_dir or (args.hand_folder / 'objects' / object_name)
     points = G.load_mesh_points(usd)
     hand = np.load(args.hand_folder / 'hand_closure.npz')
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Same upright + yaw orientation as the sugar box; rest on the table by mesh bottom.
-    quat = G.upright_quat(orient, sugar_cfg.SUGAR_BOX_TABLE_YAW_RAD)
-    rest_z = SUPPORT_HEIGHT - (points @ G.quat_to_matrix(quat).T)[:, 2].min()
-    oR0 = G.quat_to_matrix(quat)
-    op0 = np.array([*sugar_cfg.INITIAL_XY, float(rest_z)])
+    oR0 = G.quat_to_matrix(spawn_rot)
+    op0 = np.array(spawn_pos)
     if args.local_anchors > 0:
         cands = G.generate_local_candidates(points, hand, margin=args.margin, anchors=args.local_anchors)
         spans = points.max(0) - points.min(0)
     else:
         cands, spans = G.generate_candidates(points, hand, margin=args.margin, offsets=tuple(args.offsets))
-    print(f'{args.object}: principal spans (cm) {np.round(spans * 100, 1).tolist()}, '
+    print(f'{args.task} / {object_name}: principal spans (cm) {np.round(spans * 100, 1).tolist()}, '
           f'{len(cands)} candidates (margin {args.margin} m)', flush=True)
+    print(f'mesh {usd}', flush=True)
+    print(f'spawn pos {spawn_pos} rot {spawn_rot}', flush=True)
     if args.indices is not None:
         indices = args.indices
     else:
         screen = G.screen_candidates(cands, points, hand, oR0, op0, mode=args.screen_mode)
         indices = [r['candidate_index'] for r in screen if r['passes']]
         (args.out_dir / 'screen.json').write_text(json.dumps(
-            {'object': args.object, 'margin_m': args.margin, 'local_anchors': args.local_anchors, 'screen_mode': args.screen_mode, 'offsets': args.offsets, 'spans_m': spans.tolist(), 'rows': screen}, indent=1))
+            {'task': args.task, 'object': object_name, 'mesh': str(usd),
+             'margin_m': args.margin, 'local_anchors': args.local_anchors, 'screen_mode': args.screen_mode,
+             'offsets': args.offsets, 'spans_m': spans.tolist(),
+             'spawn_pos': list(spawn_pos), 'spawn_rot': list(spawn_rot), 'rows': screen}, indent=1))
     if args.limit:
         indices = indices[:args.limit]
     print(f'Validating {len(indices)} candidates: {indices}', flush=True)
@@ -122,9 +143,11 @@ def main():
     cfg = parse_env_cfg(args.task, device=args.device, num_envs=n_envs)
     cfg.seed = 0
     cfg.episode_length_s = 60.0
-    cfg.scene.object.spawn.usd_path = str(usd)
-    cfg.scene.object.init_state.pos = (*sugar_cfg.INITIAL_XY, float(rest_z))
-    cfg.scene.object.init_state.rot = quat
+    if args.object is not None:
+        cfg.scene.object.spawn.usd_path = str(usd)
+    if override_spawn:
+        cfg.scene.object.init_state.pos = spawn_pos
+        cfg.scene.object.init_state.rot = spawn_rot
     # Isaac Lab resets terminated sub-envs mid-chunk; disable those terms so a
     # fallen object does not restart while its neighbors are still grasping.
     for name in ('object_fallen', 'invalid_state', 'success'):
@@ -271,7 +294,11 @@ def main():
                 lifting &= ~ended
                 max_tilt = torch.maximum(max_tilt, tilt_deg())
             grasped = X.xsim_grasp_flags(env)['is_grasped']
-            lift_cm = env._xsim_state['metrics']['lift'] * 100.0
+            metrics = getattr(env, '_xsim_state', {}).get('metrics') or {}
+            if 'lift' in metrics:
+                lift_cm = metrics['lift'] * 100.0
+            else:
+                lift_cm = (obj.data.root_pos_w[:, 2] - obj.data.default_root_state[:, 2]) * 100.0
             hold_ok = (lift_cm >= args.lift_target_cm) & grasped & live & ~ended
             final_tilt = tilt_deg()
             for i, idx in enumerate(chunk):
@@ -318,7 +345,9 @@ def main():
             env.close()
             out = args.out_dir / 'validation.json'
             out.write_text(json.dumps({
-                'object': args.object,
+                'task': args.task,
+                'object': object_name,
+                'mesh': str(usd),
                 'controller': args.controller,
                 'num_envs': n_envs,
                 'status': 'measured physics diagnostics; not named task success',

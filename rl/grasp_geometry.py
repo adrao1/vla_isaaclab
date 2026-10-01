@@ -19,7 +19,18 @@ YCB_OBJECTS = {
     'mustard_bottle': ('Axis_Aligned_Physics/006_mustard_bottle.usd', 'x-90'),
     'bowl': ('dinnerware/024_bowl/024_bowl_physics.usd', 'none'),
 }
-OBJECT_NAMES = tuple(YCB_OBJECTS)
+# Paths relative to assets/. Spawn orientation comes from the scene, not this table.
+XSIM_OBJECTS = {
+    'xsim_mustard': 'xsim/kitchen_env/mustard/usd/mustard.usd',
+}
+OBJECT_NAMES = tuple(YCB_OBJECTS) + tuple(XSIM_OBJECTS)
+
+
+def object_usd(project_root, name):
+    """Absolute USD path for a named object asset."""
+    if name in YCB_OBJECTS:
+        return project_root / 'assets/YCB' / YCB_OBJECTS[name][0]
+    return project_root / 'assets' / XSIM_OBJECTS[name]
 
 
 def upright_quat(kind, yaw_rad):
