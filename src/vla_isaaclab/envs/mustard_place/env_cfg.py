@@ -151,14 +151,11 @@ class MustardPlaceSceneCfg(InteractiveSceneCfg):
 
     kitchen = _kitchen_cfg()
 
-    # Face +Y (same yaw as the sugar-table G1). Stand 35 cm south of the
-    # bottle so the left Dex3 is in front of it, not 50 cm to its right.
-    # The G1 USD itself expects its fixed root at z=0.74; kitchen ground is
-    # at -0.6 m, so z stays 0.1923.
-    robot = make_g1_cfg(
-        (0.5133, -0.6263, 0.1923),
-        orientation_wxyz=(0.70710678, 0.0, 0.0, 0.70710678),
-    )
+    # Keep the robot at the X-Sim robot-frame origin for this first
+    # geometry test. The G1 USD itself expects its fixed root at z=0.74.
+    #
+    # make_g1_cfg's default yaw/orientation is retained initially.
+    robot = make_g1_cfg((0.10, 0.0, 0.1923), orientation_wxyz=(1.0, 0.0, 0.0, 0.0))
 
     object = _mustard_cfg()
 
