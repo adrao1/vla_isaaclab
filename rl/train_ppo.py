@@ -909,7 +909,7 @@ def main():
         diag_middle_contact_sum = 0.0
         diag_grasp_sum = 0.0
 
-        stage_counts = torch.zeros(5, dtype=torch.long, device=device)
+        stage_counts = torch.zeros(6, dtype=torch.long, device=device)
         diag_samples = 0
 
         diag_min_distance = float("inf")
@@ -959,7 +959,7 @@ def main():
 
 
             if ARGS.task == 'VLA-YCBSugarBox-G1-Waypoint-v0':
-                stage_counts += torch.bincount(env.command_manager.get_term('target_pose').stage, minlength=5)
+                stage_counts += torch.bincount(env.command_manager.get_term('target_pose').stage, minlength=6)
 
             observations[
                 step
@@ -1828,7 +1828,7 @@ def main():
 
 
         if ARGS.task == 'VLA-YCBSugarBox-G1-Waypoint-v0':
-            print('    waypoint stage sample counts [lift, transfer, lower, release, done]:', stage_counts.tolist())
+            print('    waypoint stage sample counts [lift, transfer_mid, transfer, lower, release, done]:', stage_counts.tolist())
 
         if is_grasp_task:
             print(

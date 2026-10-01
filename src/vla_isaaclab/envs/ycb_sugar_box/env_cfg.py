@@ -52,7 +52,7 @@ INITIAL_XY = (
     -0.2904894446620847,
 )
 
-TARGET_DISPLACEMENT_M = -0.02
+TARGET_DISPLACEMENT_M = -0.30
 
 TARGET_POSE = (
     INITIAL_XY[0] + TARGET_DISPLACEMENT_M,
@@ -306,7 +306,7 @@ class YCBSugarBoxEnvCfg(VLAEnvCfg):
 
     task_instruction: str = (
         "Grasp the rotated YCB 004 sugar box from the robot-facing side, "
-        "move it 2 cm toward robot-left, and place it back on the table."
+        "move it 30 cm toward robot-left, and place it back on the table."
     )
 
     camera_eye: tuple[float, float, float] = CAMERA_EYE

@@ -49,8 +49,8 @@ def main():
     for name in ('camera', 'cam_left_high', 'cam_left_wrist', 'cam_right_wrist'):
         if hasattr(cfg.scene, name):
             setattr(cfg.scene, name, None)
-    # Default cam_side is a wide table shot; 4 mm markers vanish. Close-up for this picture only.
-    cfg.scene.cam_side = camera_cfg((0.22, 0.20, 1.05), (0.00, -0.29, 0.74))
+    # Close-up of the 30 cm transfer path (midpoint about x=-0.14).
+    cfg.scene.cam_side = camera_cfg((0.15, 0.45, 1.20), (-0.14, -0.29, 0.74))
     cfg.scene.cam_side.width = 1280
     cfg.scene.cam_side.height = 960
     env = gym.make('VLA-YCBSugarBox-G1-Waypoint-v0', cfg=cfg).unwrapped
@@ -58,15 +58,11 @@ def main():
         env.reset(seed=0)
         cmd = env.command_manager.get_term('target_pose')
         origin = env.scene.env_origins[0]
-        start = cmd.start.clone()
-        lift = start + start.new_tensor((0., 0., 0.06))
-        transfer = cmd.destination + start.new_tensor((0., 0., 0.06))
-        destination = cmd.destination.clone()
-        points = [start, lift, transfer, destination]
+        points = [cmd.start, cmd.lift, cmd.mid, cmd.hover, cmd.destination]
         world = [(p + origin).cpu().tolist() for p in points]
         stage = omni.usd.get_context().get_stage()
-        colors = [(0.7, 0.7, 0.7), (0.05, 0.55, 1.), (1., 0.55, 0.05), (0.1, 1., 0.25)]
-        names = ['start', 'lift_blue', 'transfer_orange', 'placement_release_green']
+        colors = [(0.7, 0.7, 0.7), (0.05, 0.55, 1.), (0.75, 0.2, 0.9), (1., 0.55, 0.05), (0.1, 1., 0.25)]
+        names = ['start', 'lift_blue', 'mid_purple', 'transfer_orange', 'placement_release_green']
         for name, point, color in zip(names, world, colors):
             sphere = UsdGeom.Sphere.Define(stage, '/World/WaypointPicture/' + name)
             sphere.CreateRadiusAttr(0.012)
@@ -75,7 +71,7 @@ def main():
         # No collision or rigid-body APIs: markers never participate in physics.
         line = UsdGeom.BasisCurves.Define(stage, '/World/WaypointPicture/path')
         line.CreateTypeAttr('linear')
-        line.CreateCurveVertexCountsAttr([4])
+        line.CreateCurveVertexCountsAttr([5])
         line.CreatePointsAttr([Gf.Vec3f(*p) for p in world])
         line.CreateWidthsAttr([0.004])
         line.SetWidthsInterpolation('constant')
@@ -104,7 +100,7 @@ def main():
             'description': 'Actual simulator renders. Second image hides only box geometry; physics is unchanged. Lines show desired box-center path, not a measured trajectory.',
             'markers': {name: {'local_position_m': p.cpu().tolist(), 'color_rgb': color} for name, p, color in zip(names, points, colors)},
         }, indent=2))
-        print('Blue = lift; orange = transfer; green = placement/release; gray = start.', flush=True)
+        print('Gray=start; blue=lift; purple=mid; orange=hover; green=place/release.', flush=True)
     finally:
         env.close()
 
