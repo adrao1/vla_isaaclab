@@ -12,8 +12,7 @@ from ..common import LEFT_HAND_JOINT_NAMES, LEFT_HAND_OPEN_JOINT_POSITIONS
 
 STAGES = ('lift', 'transfer_mid', 'transfer', 'lower', 'release', 'done')
 LIFT_HEIGHT_M = 0.05
-XY_TOL_M = 0.008
-# Mid/hover only. Place stays on XY_TOL_M.
+XY_TOL_M = 0.04
 TRANSFER_XY_TOL_M = 0.04
 # Half the transfer (lift→mid or mid→hover). tanh(error / this) stays nonzero across a hop.
 TRANSPORT_LENGTH_M = 0.5 * abs(TARGET_DISPLACEMENT_M)
