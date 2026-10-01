@@ -19,19 +19,21 @@ GRIP_JOINT_NAMES = (
     "left_hand_index_0_joint",
     "left_hand_index_1_joint",
 )
+# Distal joints (thumb_2, middle_1, index_1) curl when included.
 CLOSE_SIGN = (0.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0)
+STRAIGHT_CLOSE_SIGN = (0.0, 1.0, 0.0, -1.0, 0.0, -1.0, 0.0)
 OPEN_POS = (0.0, 0.0, 0.09, -0.08, -0.09, -0.08, -0.09)
 
 
 class DexGripEEDeltaController(EEDeltaController):
     ACTION_DIM = 7
 
-    def __init__(self, env, **kwargs):
+    def __init__(self, env, close_sign=CLOSE_SIGN, **kwargs):
         super().__init__(env, **kwargs)
         if list(self.hand_joint_names) != list(GRIP_JOINT_NAMES):
             raise RuntimeError(f"Unexpected hand joint order: {self.hand_joint_names}")
         soft = self.robot.data.soft_joint_pos_limits[0, self.hand_joint_ids]
-        sign = torch.tensor(CLOSE_SIGN, device=soft.device)
+        sign = torch.tensor(close_sign, device=soft.device)
         self.grip_open = torch.tensor(OPEN_POS, device=soft.device)
         self.grip_closed = torch.where(
             sign > 0, soft[:, 1], torch.where(sign < 0, soft[:, 0], self.grip_open)

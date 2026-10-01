@@ -150,7 +150,7 @@ def parse_args():
     )
 
     parser.add_argument("--checkpoint", type=Path, help="Load policy weights; start a fresh optimizer and run counters.")
-    parser.add_argument("--controller", choices=("ee7", "dex13", "grip7"), default="ee7", help="ee7: original 7-D EE+gripper; dex13: 6-D EE + 7 finger deltas.")
+    parser.add_argument("--controller", choices=("ee7", "dex13", "grip7"), default="grip7", help="grip7: 6-D EE + Dex3 synergy close; ee7: original 7-D EE+gripper; dex13: 6-D EE + 7 finger deltas.")
 
     AppLauncher.add_app_launcher_args(parser)
 
