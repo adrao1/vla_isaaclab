@@ -97,3 +97,21 @@ if MUSTARD_GUIDED_ENV_ID not in gym.registry:
         kwargs={"env_cfg_entry_point": f"{__name__}.mustard_env_cfg:MustardGuidedXSimLiftGripEnvCfg"},
         disable_env_checker=True,
     )
+
+CRACKER_REACH_ENV_ID = "VLA-YCBCrackerBox-G1-Reach-v0"
+if CRACKER_REACH_ENV_ID not in gym.registry:
+    gym.register(
+        id=CRACKER_REACH_ENV_ID,
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        kwargs={"env_cfg_entry_point": f"{__name__}.cracker_env_cfg:CrackerReachEnvCfg"},
+        disable_env_checker=True,
+    )
+
+CRACKER_GRASP_ENV_ID = "VLA-YCBCrackerBox-G1-Grasp-v0"
+if CRACKER_GRASP_ENV_ID not in gym.registry:
+    gym.register(
+        id=CRACKER_GRASP_ENV_ID,
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        kwargs={"env_cfg_entry_point": f"{__name__}.cracker_env_cfg:CrackerGraspEnvCfg"},
+        disable_env_checker=True,
+    )

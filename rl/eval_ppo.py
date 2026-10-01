@@ -24,8 +24,16 @@ parser.add_argument('--hold-seconds', type=float, default=0.5)
 parser.add_argument('--output', type=Path)
 parser.add_argument('--controller', choices=('auto', 'ee7', 'dex13', 'grip7'), default='auto',
                     help='auto: 13-D weights -> dex13; 7-D -> checkpoint --controller, else ee7')
+parser.add_argument('--lock-grip-open', action=argparse.BooleanOptionalAction, default=None,
+                    help='Force grip action -1 (open). Default on for VLA-YCBCrackerBox-G1-Reach-v0.')
+parser.add_argument('--gate-grip-until-reach', action=argparse.BooleanOptionalAction, default=None,
+                    help='Keep grip open until the palm is near the saved grasp. Default on for VLA-YCBCrackerBox-G1-Grasp-v0.')
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
+if args.lock_grip_open is None:
+    args.lock_grip_open = args.task == 'VLA-YCBCrackerBox-G1-Reach-v0'
+if args.gate_grip_until_reach is None:
+    args.gate_grip_until_reach = args.task == 'VLA-YCBCrackerBox-G1-Grasp-v0'
 if args.measure_lift and args.task == 'VLA-YCBSugarBox-G1-Waypoint-v0':
     parser.error('Use original-task evaluation for waypoints; its success term advances the stages.')
 if args.episodes < 1 or args.lift_height <= 0 or args.hold_seconds <= 0:
@@ -48,6 +56,7 @@ from isaaclab_tasks.utils import parse_env_cfg
 from ee_delta_controller import EEDeltaController
 from dex_ee_delta_controller import DexEEDeltaController
 from dex_grip_controller import DexGripEEDeltaController
+from grip_constraints import apply_grip_constraints
 from ppo_components import Agent, RolloutVideoRecorder, load_agent_checkpoint
 from vla_isaaclab.envs.ycb_sugar_box.mdp import xsim as xsim_mdp
 from vla_isaaclab.envs.ycb_sugar_box.mdp.terminations import dex3_grasp_contacts
@@ -129,6 +138,8 @@ def main():
             obs, _ = env.reset(seed=seed)
             if hasattr(env, 'grasp_success_counter'):
                 env.grasp_success_counter.zero_()
+            if hasattr(env, 'reach_success_counter'):
+                env.reach_success_counter.zero_()
             controller.reset()
             initial_height = float(env.scene['object'].data.root_pos_w[0, 2])
             max_height = 0.0
@@ -147,6 +158,11 @@ def main():
                         recorder.add_rgb(env.scene['cam_side'].data.output['rgb'][0, ..., :3].detach().cpu().numpy())
                     with torch.inference_mode():
                         action = agent.get_action(obs['policy'], deterministic=True).clamp(-1, 1)
+                        action = apply_grip_constraints(
+                            action, env,
+                            lock_open=args.lock_grip_open,
+                            gate_until_reach=args.gate_grip_until_reach,
+                        )
                         command = controller.compute(action)
                         if not torch.isfinite(command).all():
                             raise RuntimeError('Non-finite controller command')

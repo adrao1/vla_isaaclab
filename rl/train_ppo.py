@@ -151,10 +151,26 @@ def parse_args():
 
     parser.add_argument("--checkpoint", type=Path, help="Load policy weights; start a fresh optimizer and run counters.")
     parser.add_argument("--controller", choices=("ee7", "dex13", "grip7"), default="grip7", help="grip7: 6-D EE + Dex3 synergy close; ee7: original 7-D EE+gripper; dex13: 6-D EE + 7 finger deltas.")
+    parser.add_argument(
+        "--lock-grip-open",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Force grip action -1 (open). Default on for VLA-YCBCrackerBox-G1-Reach-v0.",
+    )
+    parser.add_argument(
+        "--gate-grip-until-reach",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Keep grip open until the palm is near the saved grasp. Default on for VLA-YCBCrackerBox-G1-Grasp-v0.",
+    )
 
     AppLauncher.add_app_launcher_args(parser)
 
     args = parser.parse_args()
+    if args.lock_grip_open is None:
+        args.lock_grip_open = args.task == "VLA-YCBCrackerBox-G1-Reach-v0"
+    if args.gate_grip_until_reach is None:
+        args.gate_grip_until_reach = args.task == "VLA-YCBCrackerBox-G1-Grasp-v0"
 
     if args.video_every < 0:
         parser.error("--video-every must be >= 0")
@@ -215,6 +231,7 @@ from isaaclab_tasks.utils import parse_env_cfg
 from ee_delta_controller import EEDeltaController
 from dex_ee_delta_controller import DexEEDeltaController
 from dex_grip_controller import DexGripEEDeltaController
+from grip_constraints import apply_grip_constraints
 from xsim_stats import XSimRolloutStats
 
 from vla_isaaclab.envs.common import (
@@ -232,6 +249,19 @@ from vla_isaaclab.envs.ycb_sugar_box.mdp import (
 
 
 GRASP_TASK = "VLA-YCBSugarBox-G1-Grasp-v0"
+CRACKER_REACH_TASK = "VLA-YCBCrackerBox-G1-Reach-v0"
+CRACKER_GRASP_TASK = "VLA-YCBCrackerBox-G1-Grasp-v0"
+
+
+def constrained_env_action(controller, action, env):
+    return controller.compute(
+        apply_grip_constraints(
+            action,
+            env,
+            lock_open=ARGS.lock_grip_open,
+            gate_until_reach=ARGS.gate_grip_until_reach,
+        )
+    )
 
 
 # =====================================================================
@@ -393,8 +423,10 @@ def record_evaluation_episode(
                 1.0,
             )
 
-            env_action = controller.compute(
-                executed_action
+            env_action = constrained_env_action(
+                controller,
+                executed_action,
+                env,
             )
 
             if not torch.isfinite(
@@ -591,6 +623,8 @@ def main():
     xsim_stats = XSimRolloutStats() if getattr(env, "_xsim_state", None) is not None else None
 
     controller.reset()
+    if (ARGS.lock_grip_open or ARGS.gate_grip_until_reach) and ARGS.controller == "dex13":
+        raise ValueError("Grip lock/gate requires grip7 or ee7, not dex13")
 
 
     # -----------------------------------------------------------------
@@ -778,7 +812,13 @@ def main():
     # -----------------------------------------------------------------
 
     is_grasp_task = (
-        ARGS.task in (GRASP_TASK, "VLA-YCBSugarBox-G1-GuidedGrasp-v0", "VLA-YCBSugarBox-G1-Waypoint-v0")
+        ARGS.task in (
+            GRASP_TASK,
+            "VLA-YCBSugarBox-G1-GuidedGrasp-v0",
+            "VLA-YCBSugarBox-G1-Waypoint-v0",
+            CRACKER_REACH_TASK,
+            CRACKER_GRASP_TASK,
+        )
     )
 
     initial_box_height = (
@@ -824,6 +864,16 @@ def main():
     print(
         "Isaac action_dim:",
         env.action_manager.total_action_dim,
+    )
+
+    print(
+        "lock_grip_open:",
+        ARGS.lock_grip_open,
+    )
+
+    print(
+        "gate_grip_until_reach:",
+        ARGS.gate_grip_until_reach,
     )
 
     print(
@@ -1116,10 +1166,10 @@ def main():
             # Convert 7-D EE action -> 43-D Isaac joint action.
             # ---------------------------------------------------------
 
-            env_action = (
-                controller.compute(
-                    executed_action
-                )
+            env_action = constrained_env_action(
+                controller,
+                executed_action,
+                env,
             )
 
 
