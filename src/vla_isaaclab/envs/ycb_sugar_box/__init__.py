@@ -88,3 +88,12 @@ if MUSTARD_XSIM_LIFT_GRIP_ENV_ID not in gym.registry:
         kwargs={"env_cfg_entry_point": f"{__name__}.mustard_env_cfg:MustardXSimLiftGripEnvCfg"},
         disable_env_checker=True,
     )
+
+MUSTARD_GUIDED_ENV_ID = "VLA-YCBMustard-G1-GuidedComputed-v0"
+if MUSTARD_GUIDED_ENV_ID not in gym.registry:
+    gym.register(
+        id=MUSTARD_GUIDED_ENV_ID,
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        kwargs={"env_cfg_entry_point": f"{__name__}.mustard_env_cfg:MustardGuidedXSimLiftGripEnvCfg"},
+        disable_env_checker=True,
+    )

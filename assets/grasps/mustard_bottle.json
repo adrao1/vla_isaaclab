@@ -1,0 +1,361 @@
+{
+ "object": "mustard_bottle",
+ "status": "measured physics diagnostics; not named task success",
+ "frame": "palm_position_asset_m / palm_rotation_asset_from_palm: left_hand_palm_link pose in the object root frame",
+ "generation": {
+  "margin_m": 0.01,
+  "offsets": [
+   -0.25,
+   0.0,
+   0.25
+  ],
+  "script": "rl/grasp_geometry.py"
+ },
+ "grasps": [
+  {
+   "candidate": 171,
+   "axis": 0,
+   "roll_rad": 4.71238898038469,
+   "position_offset_principal_fractions": [
+    0.0,
+    -0.25,
+    -0.25
+   ],
+   "palm_position_asset_m": [
+    -0.11598921575945206,
+    -0.048793380838189494,
+    -0.05672844136006237
+   ],
+   "palm_rotation_asset_from_palm": [
+    [
+     0.4244619501178643,
+     -0.9054452998799821,
+     0.0009276376013759445
+    ],
+    [
+     0.01494396296599945,
+     0.005981174361421512,
+     -0.9998704253359778
+    ],
+    [
+     0.9053224311679425,
+     0.4244208139927982,
+     0.016069722117054947
+    ]
+   ],
+   "validation_runs": [
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 6.75475001335144,
+     "max_tilt_deg": 8.013908386230469,
+     "close_grasp_steps": 50
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_1/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 6.436258554458618,
+     "max_tilt_deg": 7.253363132476807,
+     "close_grasp_steps": 49
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_2/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 6.436258554458618,
+     "max_tilt_deg": 7.253363132476807,
+     "close_grasp_steps": 49
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_3/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 6.436258554458618,
+     "max_tilt_deg": 7.253363132476807,
+     "close_grasp_steps": 49
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/rhand_check/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 6.436258554458618,
+     "max_tilt_deg": 7.253363132476807,
+     "close_grasp_steps": 49
+    }
+   ]
+  },
+  {
+   "candidate": 189,
+   "axis": 0,
+   "roll_rad": 5.497787143782138,
+   "position_offset_principal_fractions": [
+    -0.25,
+    -0.25,
+    -0.25
+   ],
+   "palm_position_asset_m": [
+    -0.08882719497122259,
+    -0.11463448070482979,
+    -0.04046981192142696
+   ],
+   "palm_rotation_asset_from_palm": [
+    [
+     0.2916432909026018,
+     -0.6437166248280481,
+     0.7075118932330883
+    ],
+    [
+     0.3305208217923334,
+     -0.6262871961944961,
+     -0.7060597110655057
+    ],
+    [
+     0.8976080161941763,
+     0.4397649914154427,
+     0.030109289028701105
+    ]
+   ],
+   "validation_runs": [
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 10.17981767654419,
+     "max_tilt_deg": 10.548370361328125,
+     "close_grasp_steps": 49
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_1/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.736955165863037,
+     "max_tilt_deg": 11.921835899353027,
+     "close_grasp_steps": 50
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_2/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.736955165863037,
+     "max_tilt_deg": 11.921835899353027,
+     "close_grasp_steps": 50
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_3/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.736955165863037,
+     "max_tilt_deg": 11.921835899353027,
+     "close_grasp_steps": 50
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/rhand_check/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.736955165863037,
+     "max_tilt_deg": 11.921835899353027,
+     "close_grasp_steps": 50
+    }
+   ]
+  },
+  {
+   "candidate": 190,
+   "axis": 0,
+   "roll_rad": 5.497787143782138,
+   "position_offset_principal_fractions": [
+    -0.25,
+    -0.25,
+    0.0
+   ],
+   "palm_position_asset_m": [
+    -0.0888744985978466,
+    -0.06675148093681467,
+    -0.04112641444847119
+   ],
+   "palm_rotation_asset_from_palm": [
+    [
+     0.2916432909026018,
+     -0.6437166248280481,
+     0.7075118932330883
+    ],
+    [
+     0.3305208217923334,
+     -0.6262871961944961,
+     -0.7060597110655057
+    ],
+    [
+     0.8976080161941763,
+     0.4397649914154427,
+     0.030109289028701105
+    ]
+   ],
+   "validation_runs": [
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 8.279484510421753,
+     "max_tilt_deg": 10.440540313720703,
+     "close_grasp_steps": 55
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_1/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 8.279484510421753,
+     "max_tilt_deg": 10.440540313720703,
+     "close_grasp_steps": 55
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_2/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 8.279484510421753,
+     "max_tilt_deg": 10.440540313720703,
+     "close_grasp_steps": 55
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_3/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 8.279484510421753,
+     "max_tilt_deg": 10.440540313720703,
+     "close_grasp_steps": 55
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/rhand_check/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 8.279484510421753,
+     "max_tilt_deg": 10.440540313720703,
+     "close_grasp_steps": 55
+    }
+   ]
+  },
+  {
+   "candidate": 198,
+   "axis": 0,
+   "roll_rad": 5.497787143782138,
+   "position_offset_principal_fractions": [
+    0.0,
+    -0.25,
+    -0.25
+   ],
+   "palm_position_asset_m": [
+    -0.08845270371522596,
+    -0.11483501233617774,
+    -0.05512064017084909
+   ],
+   "palm_rotation_asset_from_palm": [
+    [
+     0.2916432909026018,
+     -0.6437166248280481,
+     0.7075118932330883
+    ],
+    [
+     0.3305208217923334,
+     -0.6262871961944961,
+     -0.7060597110655057
+    ],
+    [
+     0.8976080161941763,
+     0.4397649914154427,
+     0.030109289028701105
+    ]
+   ],
+   "validation_runs": [
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 10.6620192527771,
+     "max_tilt_deg": 10.549787521362305,
+     "close_grasp_steps": 50
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_1/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 10.699152946472168,
+     "max_tilt_deg": 10.549787521362305,
+     "close_grasp_steps": 50
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_2/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 10.699152946472168,
+     "max_tilt_deg": 10.549787521362305,
+     "close_grasp_steps": 50
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_3/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 10.699152946472168,
+     "max_tilt_deg": 10.549787521362305,
+     "close_grasp_steps": 50
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/rhand_check/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 10.699152946472168,
+     "max_tilt_deg": 10.549787521362305,
+     "close_grasp_steps": 50
+    }
+   ]
+  },
+  {
+   "candidate": 192,
+   "axis": 0,
+   "roll_rad": 5.497787143782138,
+   "position_offset_principal_fractions": [
+    -0.25,
+    0.0,
+    -0.25
+   ],
+   "palm_position_asset_m": [
+    -0.06482237643946338,
+    -0.11460235843346123,
+    -0.039856662073683435
+   ],
+   "palm_rotation_asset_from_palm": [
+    [
+     0.2916432909026018,
+     -0.6437166248280481,
+     0.7075118932330883
+    ],
+    [
+     0.3305208217923334,
+     -0.6262871961944961,
+     -0.7060597110655057
+    ],
+    [
+     0.8976080161941763,
+     0.4397649914154427,
+     0.030109289028701105
+    ]
+   ],
+   "validation_runs": [
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.351038932800293,
+     "max_tilt_deg": 13.593517303466797,
+     "close_grasp_steps": 51
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_1/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.361070394515991,
+     "max_tilt_deg": 14.434537887573242,
+     "close_grasp_steps": 51
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_2/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.361070394515991,
+     "max_tilt_deg": 14.434537887573242,
+     "close_grasp_steps": 51
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/repeat_3/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.361070394515991,
+     "max_tilt_deg": 14.434537887573242,
+     "close_grasp_steps": 51
+    },
+    {
+     "source": "outputs/grasp_geometry/objects/mustard_bottle/rhand_check/validation.json",
+     "measured_lift_and_hold": true,
+     "final_lift_cm": 9.361070394515991,
+     "max_tilt_deg": 14.434537887573242,
+     "close_grasp_steps": 51
+    }
+   ]
+  }
+ ]
+}
