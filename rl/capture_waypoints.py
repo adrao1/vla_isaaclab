@@ -30,6 +30,7 @@ import vla_isaaclab
 import omni.usd
 from pxr import Gf, UsdGeom
 from isaaclab_tasks.utils import parse_env_cfg
+from vla_isaaclab.envs.common import camera_cfg
 
 
 def png(path, rgb):
@@ -48,6 +49,8 @@ def main():
     for name in ('camera', 'cam_left_high', 'cam_left_wrist', 'cam_right_wrist'):
         if hasattr(cfg.scene, name):
             setattr(cfg.scene, name, None)
+    # Default cam_side is a wide table shot; 4 mm markers vanish. Close-up for this picture only.
+    cfg.scene.cam_side = camera_cfg((0.22, 0.20, 1.05), (0.00, -0.29, 0.74))
     cfg.scene.cam_side.width = 1280
     cfg.scene.cam_side.height = 960
     env = gym.make('VLA-YCBSugarBox-G1-Waypoint-v0', cfg=cfg).unwrapped
@@ -66,7 +69,7 @@ def main():
         names = ['start', 'lift_blue', 'transfer_orange', 'placement_release_green']
         for name, point, color in zip(names, world, colors):
             sphere = UsdGeom.Sphere.Define(stage, '/World/WaypointPicture/' + name)
-            sphere.CreateRadiusAttr(0.004)
+            sphere.CreateRadiusAttr(0.012)
             sphere.AddTranslateOp().Set(Gf.Vec3d(*point))
             sphere.CreateDisplayColorAttr([Gf.Vec3f(*color)])
         # No collision or rigid-body APIs: markers never participate in physics.
@@ -74,7 +77,7 @@ def main():
         line.CreateTypeAttr('linear')
         line.CreateCurveVertexCountsAttr([4])
         line.CreatePointsAttr([Gf.Vec3f(*p) for p in world])
-        line.CreateWidthsAttr([0.0015])
+        line.CreateWidthsAttr([0.004])
         line.SetWidthsInterpolation('constant')
         line.CreateDisplayColorAttr([Gf.Vec3f(0.9, 0.9, 0.9)])
         camera = env.scene['cam_side']
