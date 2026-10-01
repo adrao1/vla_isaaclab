@@ -13,6 +13,8 @@ from ..common import LEFT_HAND_JOINT_NAMES, LEFT_HAND_OPEN_JOINT_POSITIONS
 STAGES = ('lift', 'transfer_mid', 'transfer', 'lower', 'release', 'done')
 LIFT_HEIGHT_M = 0.05
 XY_TOL_M = 0.008
+# Mid/hover only. Place stays on XY_TOL_M.
+TRANSFER_XY_TOL_M = 0.04
 # Half the transfer (lift→mid or mid→hover). tanh(error / this) stays nonzero across a hop.
 TRANSPORT_LENGTH_M = 0.5 * abs(TARGET_DISPLACEMENT_M)
 
@@ -82,12 +84,13 @@ class WaypointCommand(CommandTerm):
         free = opened & ~(contacts['thumb_contact'] | contacts['index_contact'] | contacts['middle_contact'])
         up = grasp & (rise >= LIFT_HEIGHT_M)
         good = (((self.stage == 0) & up)
-                | ((self.stage == 1) & up & (xy_mid < XY_TOL_M))
-                | ((self.stage == 2) & up & (xy_dest < XY_TOL_M))
+                | ((self.stage == 1) & up & (xy_mid < TRANSFER_XY_TOL_M))
+                | ((self.stage == 2) & up & (xy_dest < TRANSFER_XY_TOL_M))
                 | ((self.stage == 3) & grasp & placed & slow)
                 | ((self.stage == 4) & free & placed & slow))
         self.held[fresh] = torch.where(good, self.held + 1, 0)[fresh]
-        needed = torch.where(self.stage == 3, 5, math.ceil(0.5 / self._env.step_dt))
+        transfer_or_place = (self.stage == 1) | (self.stage == 2) | (self.stage == 3)
+        needed = torch.where(transfer_or_place, 5, math.ceil(0.5 / self._env.step_dt))
         passed = fresh & (self.stage < 5) & (self.held >= needed)
         self.bonus[fresh] = 0
         self.bonus[passed & (self.stage < 4)] = 1
