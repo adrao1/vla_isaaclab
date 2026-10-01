@@ -4,7 +4,7 @@ Same interface shape as X-Sim's Panda (6 EE + 1 gripper), a G1 adaptation:
 grip action a in [-1, 1] -> fraction f = (a + 1) / 2 of the straight path from
 the open pose (just inside the soft limits) to the closing-side soft limits.
 Closing directions (thumb_1/2 +, index/middle -) were verified by
-rl/probe_dex_closure.py. thumb_0 stays at its open value.
+rl/legacy/probe_dex_closure.py. thumb_0 stays at its open value.
 """
 import torch
 

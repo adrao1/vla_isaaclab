@@ -34,7 +34,7 @@ from isaaclab.utils.math import quat_apply
 from ...common import LEFT_END_EFFECTOR, LEFT_HAND_JOINT_NAMES
 
 # Midpoint between thumb pad and index/middle pads over 10-50% closure
-# (rl/probe_dex_closure.py). Hand geometry only; no object information.
+# (rl/legacy/probe_dex_closure.py). Hand geometry only; no object information.
 TCP_OFFSET_PALM = (0.089, -0.057, 0.0)
 
 # Pad centers (distal-link geometry bbox centers) in each link's own frame.

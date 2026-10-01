@@ -125,7 +125,7 @@ class XSimLiftRotEnvCfg(XSimLiftEnvCfg):
 
 # G1 adaptation (not X-Sim): X-Sim's Panda gripper is force-limited (100 N).
 # Without a cap, absolute Dex3 grip targets squeeze with hundreds of newtons
-# and throw the box (rl/probe_policy_close.py). Cap hand joint torque and
+# and throw the box (rl/legacy/probe_policy_close.py). Cap hand joint torque and
 # lower damping so the fingers still close quickly under the cap.
 HAND_EFFORT_CAP_NM = 2.0
 HAND_DAMPING = 0.5
