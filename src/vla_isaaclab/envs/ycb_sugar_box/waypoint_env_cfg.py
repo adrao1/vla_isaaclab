@@ -127,6 +127,15 @@ def transport_reward(env):
 def staged_contact_reward(env):
     return contact_reward(env) * (command(env).stage < 4).float()
 
+def lower_reward(env):
+    cmd = command(env)
+    pos, contacts, angle, _ = cmd.measure()
+    z_err = (pos[:, 2] - cmd.destination[2]).abs()
+    xy_err = torch.linalg.vector_norm(pos[:, :2] - cmd.destination[:2], dim=-1)
+    return (cmd.stage == 3).float() * contacts['is_grasping'].float() * (
+        1 - torch.tanh(z_err / 0.05)
+    ) * (1 - torch.tanh(xy_err / 0.04)) * (1 - torch.tanh(angle))
+
 def release_reward(env):
     cmd = command(env)
     pos, contacts, angle, _ = cmd.measure()
@@ -152,6 +161,7 @@ class WaypointRewardsCfg(GuidedRewardsCfg):
     orientation = RewardTermCfg(func=staged_orientation, weight=0.5)
     grasp = RewardTermCfg(func=staged_contact_reward, weight=0.25)
     transport = RewardTermCfg(func=transport_reward, weight=4.)
+    lower = RewardTermCfg(func=lower_reward, weight=4.)
     release = RewardTermCfg(func=release_reward, weight=4.)
     milestone = RewardTermCfg(func=milestone_reward, weight=2.)
     completion = RewardTermCfg(func=completion_reward, weight=10.)
